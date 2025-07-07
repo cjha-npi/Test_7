@@ -1786,7 +1786,7 @@ File Names: doxy-plus.*
     }
   }, false);
 
-  async function onHashChange(){
+  async function onHashChange() {
     const sec = await waitFor('#dp-sec-nav');
     setCurrentTreeItem(sec, true);
   }
@@ -1919,17 +1919,21 @@ File Names: doxy-plus.*
 
     const prev = container.querySelector('.dp-current');
     if (prev) {
+      const prevLink = prev.querySelector('.dp-tree-link[href]');
+      if (prevLink) {
+        console.log('Previous href:', prevLink.getAttribute('href'));
+      }
       prev.classList.remove('dp-current');
     }
 
-    const target = useHash ? window.location.hash : window.location.pathname;
+    const target = useHash ? window.location.hash : window.location.href.split('#')[0];
     if (!target) return;
 
-    console.log('----', useHash, target);
+    //console.log('----', useHash, target, window.location.href);
 
     const links = container.querySelectorAll('.dp-tree-link[href]');
     for (const link of links) {
-        console.log('--', useHash, link.getAttribute('href'));
+      //console.log('--', useHash, link.getAttribute('href'));
       if (link.getAttribute('href') === target) {
 
 
@@ -1947,7 +1951,7 @@ File Names: doxy-plus.*
         }
 
         // 5. scroll it into view
-        item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         break;
       }
     }

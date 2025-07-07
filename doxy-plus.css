@@ -255,7 +255,7 @@ body {
   z-index: 10000 !important;
 }
 
-li.dp-current .dp-tree-line {
+li.dp-current > .dp-tree-line {
   background-color: rgb(255, 0, 0) !important;
 }
 
