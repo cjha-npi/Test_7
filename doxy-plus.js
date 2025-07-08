@@ -1,4 +1,3 @@
-
 /*
 Prefix: dp-
 File Names: doxy-plus.*
@@ -11,28 +10,52 @@ File Names: doxy-plus.*
 ; (function ($) {
   'use strict';
 
-  console.log('━━━━━━━━━━ FULL RELOAD ━━━━━━━━━━');
-
   // #region 🟩 CONSTANTS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  const KEY__DUAL_NAV = 'dual_nav'; // key by which dual nav or single nav data is stored in local storage
-  const KEY__PRI_WIDTH = 'pri_width'; // key by which width of the primary pane of dual nav is stored in local storage
-  const KEY__SEC_WIDTH = 'sec_width'; // key by which width of the secondary pane of dual nav is stored in local storage
-  const KEY__GEN_DATA = 'gen_data'; // key by which the doxygen generation time is stored in session storage
-  const KEY__PRI_TREE = 'pri_tree'; // key by which primary tree for dual nav is stored in session storage
-  const KEY__MISSED_HTML_PAGES = 'missed_html_pages';
-  const KEY__PRI_NAV_EXPANDED_NODES = 'pri_nav_expanded_nodes'; // key by which primary nav's already expanded nodes are stored in session storage
+  // Storage Keys
+  const KEY__DUAL_NAV = 'dual_nav'; // key by which dual nav enabled state is stored
+  const KEY__PRI_WIDTH = 'pri_width'; // key by which width of the dual nav -> primary pane is stored
+  const KEY__SEC_WIDTH = 'sec_width'; // key by which width of the dual nav -> secondary pane is stored
+  const KEY__GEN_DATA = 'gen_data'; // key by which the doxygen generation time is stored
+  const KEY__PRI_TREE = 'pri_tree'; // key by which primary tree for dual nav is stored
+  const KEY__PRI_NAV_EXPANDED_NODES = 'pri_nav_expanded_nodes'; // key by which primary nav's already expanded nodes are stored
 
   // Constant Values
-  const MAX_ATTEMPTS = 50; // Allowed max attempts for a rerun when something is not found in the initial run
-  const ICON_SIDE_NAV = 'doxy-plus-side-nav.png'; // name for the icon that shows the default side nav symbol
+  const ICON_SIDE_NAV = 'doxy-plus-side-nav.png'; // name for the icon that shows the side nav symbol
   const ICON_DUAL_NAV = 'doxy-plus-dual-nav.png'; // name for the icon that shows the dual nav symbol
   const MIN_W = 25; // minimum width of either primary or secondary nav panes in dual nav configuration
   const GUTTER_W = 100; // right side gutter width in dual nav configuration
   const MEDIA_QUERY_WIN_WIDTH = window.matchMedia('(min-width: 768px)'); // a MediaQueryList for “min-width: 768px”, later used to set the correct layout
   const TIME_TO_LIVE = 10 * 60 * 1000; // 10 minutes, time for a storage variable to be considered stale. 7 * 24 * 60 * 60 * 1000 == 7 Days, 30 * 24 * 60 * 60 * 1000 == 30 Days
   const IS_HTML_END = /\.(?:xhtml|html)$/i; // case-insensitive check for a string ending in either .xhtml or .html
+  const TIMEOUT = 2000;
+
+  const DOXY_TIME = (() => {
+    let footerEl = document.querySelector('#nav-path li.footer') || document.querySelector('address.footer small');
+    if (footerEl) {
+      const text = footerEl.textContent || footerEl.innerText;
+      const match = text.match(/Generated\s+on\s+(.+)/i);
+      if (match) {
+        return match[1].trim();
+      }
+      else {
+        console.error('Footer element found, but no text match could be generated');
+        return '';
+      }
+    }
+    else {
+      console.warn('Footer element not found!');
+      return '';
+    }
+  })();
+  console.log('FOOTER:', DOXY_TIME);
+
+  const lastModString = document.lastModified;
+  const lastModDate = new Date(lastModString);
+  console.log('document.lastModified:', lastModDate.toLocaleString());
+
+  
 
   const DOC_ROOT = (() => {
     // Determine the base path (DOC_ROOT) of the current documentation site.
@@ -139,7 +162,6 @@ File Names: doxy-plus.*
         const rem = fullKey.slice(PRE.length);
         const [nsName, actualKey] = rem.split(SEP, 2);
         const nsStore = store.namespace(nsName);
-
         const showDebugOutput = false; // set it to true to see the debug outputs
         if (showDebugOutput) {
           const expiresAt = nsStore.getExpiration(actualKey);
@@ -165,18 +187,31 @@ File Names: doxy-plus.*
   // #region 🟩 GLOBAL VARIABLES
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  let _consoleObjectName = '';
-  let _dualNav = load(KEY__DUAL_NAV, true);
-  let _priTree = [];
-  let _missedHtmlPages = [];
-  let _secTree = [];
-  let _secTreeRemarks = '';
+  // numbers
   let _wPri = loadNum(KEY__PRI_WIDTH, 250);
   let _wSec = loadNum(KEY__SEC_WIDTH, 250);
-  let _priExpandedNodes = new Set();
-
-  let _adjustXandH_resizeObserver = null;
   let _docMarginStableFrames = 0;
+
+  // strings
+  let _consoleObjectName = '';
+  let _secTreeRemarks = '';
+
+  // booleans
+  let _dualNav = load(KEY__DUAL_NAV, true);
+
+  // sets and arrays
+  let _priTree = [];
+  let _secTree = [];
+  let _priExpNodes = new Set();
+  let _secColNodes = new Set();
+
+  // objects
+  let _adjustXandH_resizeObserver = null;
+
+  // saving so that expiry time will be updated
+  save(KEY__DUAL_NAV, _dualNav);
+  save(KEY__PRI_WIDTH, _wPri);
+  save(KEY__SEC_WIDTH, _wSec);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 GLOBAL VARIABLES
@@ -215,27 +250,10 @@ File Names: doxy-plus.*
     };
   }
 
-  function rerun(stepFn, attempt, ...args) {
-    // Schedule the next animation frame up to MAX_ATTEMPTS,
-    // passing along any extra arguments to stepFn.
-    // ⚠️ The function should take first parameter as next attempt index
-    // and then there can none or any number of parameters
-    // Returns: The RAF ID, or null if you aborted.
-    if (attempt < MAX_ATTEMPTS) {
-      return requestAnimationFrame(() => stepFn(attempt + 1, ...args));
-    }
-    else {
-      console.error(`${stepFn.name || 'callback'} [${attempt}]: Exceeded max attempts; aborting.`);
-      return null;
-    }
-  }
-
-  function waitFor(selector, timeout = 2000) {
+  function waitFor(selector) {
     // Waits for the first element matching any CSS selector.
     // selector: Any valid querySelector string.
-    // timeout: ms before rejecting (default 1 second).
     // Returns: Promise<Element>
-
     return new Promise((resolve, reject) => {
       // Immediate hit?
       const el = document.querySelector(selector);
@@ -243,6 +261,9 @@ File Names: doxy-plus.*
         //console.log(`Selector "${selector}" found immediately, no need for mutation observer`);
         return resolve(el);
       }
+
+      // pre-declare the timer variable for the closure
+      let timer;
 
       // Otherwise observe mutations until we find one
       // In MutationObserver, first argument '_' is an
@@ -253,69 +274,22 @@ File Names: doxy-plus.*
       const obs = new MutationObserver((_, observer) => {
         const found = document.querySelector(selector);
         if (found) {
-          observer.disconnect();
           //console.log(`Selector "${selector}" found in mutation observer, Task Complete!`);
+          observer.disconnect();
+          clearTimeout(timer);
           resolve(found);
         }
+        //else{
+        //  console.log(`Selector "${selector}" NOT found in mutation observer, Looking...`);
+        //}
       });
       obs.observe(document.body, { childList: true, subtree: true });
 
       // Give up after timeout
-      if (timeout > 0) {
-        setTimeout(() => {
-          obs.disconnect();
-          reject(new Error(`Timed out waiting for selector "${selector}"`));
-        }, timeout);
-      }
-    });
-  }
-
-  function waitForId(id, timeout = 2000) {
-    // Waits for an element with the given ID.
-    // id: The element’s id attribute (without the “#”).
-    // timeout: ms before rejecting (default 1 second).
-    // Returns: Promise<Element>
-
-    // fast path
-    const el = document.getElementById(id);
-    if (el) {
-      //console.log(`Element "#${id}" found immediately, no need for mutation observer`);
-      return Promise.resolve(el);
-    }
-    // fall back to the generic waitFor
-    return waitFor(`#${id}`, timeout);
-  }
-
-  function waitForClass(className, timeout = 2000) {
-    // Waits for one or more elements with the given class.
-    // className: The class name (without the “.”).
-    // timeout: ms before rejecting (default 1 second).
-    // Returns: Promise<Element[]> i.e. resolves with an array of matching elements
-
-    return new Promise((resolve, reject) => {
-      // fast path
-      const initial = document.getElementsByClassName(className);
-      if (initial.length) {
-        return resolve(Array.from(initial));
-      }
-
-      // observe until we see at least one
-      const obs = new MutationObserver((_, observer) => {
-        const found = document.getElementsByClassName(className);
-        if (found.length) {
-          observer.disconnect();
-          resolve(Array.from(found));
-        }
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-
-      // give up after timeout
-      if (timeout > 0) {
-        setTimeout(() => {
-          obs.disconnect();
-          reject(new Error(`Timed out waiting for class ".${className}"`));
-        }, timeout);
-      }
+      timer = setTimeout(() => {
+        obs.disconnect();
+        reject(new Error(`Timed out waiting for selector "${selector}" after ${TIMEOUT} ms`));
+      }, TIMEOUT);
     });
   }
 
@@ -354,423 +328,59 @@ File Names: doxy-plus.*
     });
   }
 
-  function showToast(message, red = false, duration = 5000) {
-    // 1) Get or create the container
-    let container = document.getElementById('dp-toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'dp-toast-container';
-      Object.assign(container.style, {
-        position: 'fixed',
-        bottom: '16px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        pointerEvents: 'none',
-        zIndex: '9999'
-      });
-      document.body.appendChild(container);
-    }
-
-    // 2) Build the toast
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    Object.assign(toast.style, {
-      background: red ? 'rgba(150, 0, 0, 0.8)' : 'rgba(0,0,0,0.8)',
-      color: 'white',
-      fontSize: '12px',        // smaller text
-      padding: '6px 12px',
-      borderRadius: '6px',         // 6px radius
-      marginTop: '8px',
-      fontFamily: 'sans-serif',
-      boxShadow: red ? '0 2px 6px rgba(150,0,0,0.4)' : '0 2px 6px rgba(0,0,0,0.4)',
-      pointerEvents: 'auto',
-      opacity: '0.6',         // very low default opacity
-      transform: 'translateY(16px)',
-      transition: 'opacity 0.2s ease, transform 0.3s ease'
-    });
-    container.appendChild(toast);
-
-    // 3) Animate in to low opacity
-    requestAnimationFrame(() => {
-      toast.style.transform = 'translateY(0)';
-      toast.style.opacity = '0.6';
-    });
-
-    // 4) Set up dismissal logic with pause/resume
-    let remaining = duration;
-    let start = Date.now();
-    let timeoutId;
-
-    const dismiss = () => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(16px)';
-      toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-    };
-
-    const schedule = () => {
-      start = Date.now();
-      timeoutId = setTimeout(dismiss, remaining);
-    };
-
-    // begin the first timeout
-    schedule();
-
-    // 5) Hover handlers: pause on enter, resume on leave (at full opacity)
-    toast.addEventListener('mouseenter', () => {
-      clearTimeout(timeoutId);
-      // subtract elapsed time
-      remaining -= Date.now() - start;
-      // bump opacity to full
-      toast.style.opacity = '1';
-    });
-
-    toast.addEventListener('mouseleave', () => {
-      // restore translucent state
-      toast.style.opacity = '0.6';
-      // schedule the remainder
-      schedule();
-    });
-  }
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 HELPERS
-
-  // #region 🟩 CONSOLE OBJECT
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  const consoleObject = Object.create(null); // main object
-
-  // Project root location.
-  // If the project is hosted on GitHub, the root is the origin URL plus the repository name; otherwise, it defaults to the local folder path on disk.
-  Object.defineProperty(consoleObject, 'project_root', {
-    get() {
-      console.log(`Project root location: ${DOC_ROOT}\n\nIf the project is hosted on GitHub, the root is the origin URL plus the repository name; otherwise, it defaults to the local folder path on disk.`);
-    },
-    configurable: true
-  });
-
-  // Project storage namespace.
-  // This namespace is used by store.js to store project data. By default, store.js uses the browser’s localStorage, which namespaces data by origin. As a result, projects sharing the same origin (e.g. some.com/proj_a and some.com/proj_b) will share the same storage. Likewise, projects loaded from different disk locations (e.g. D:/file/proj_a and E:/other/proj_b) also end up using the same localStorage.
-  // To prevent one project’s data from overwriting another’s, we use store.js’s namespace feature. Assigning each project its own namespace ensures that data remains isolated and cannot conflict with other projects.
-  Object.defineProperty(consoleObject, 'project_namespace', {
-    get() {
-      console.log(`Project Storage Namespace: ${PROJ_NAMESPACE}\n\nThis namespace is used by store.js to store project data. By default, store.js uses the browser's localStorage, which namespaces data by origin. As a result, projects sharing the same origin (e.g. some.com/proj_a and some.com/proj_b) will share the same storage. Likewise, projects loaded from different disk locations (e.g. D:/file/proj_a and E:/other/proj_b) also end up using the same localStorage.\n\nTo prevent one project's data from overwriting another's, we use store.js's namespace feature. Assigning each project its own namespace ensures that data remains isolated and cannot conflict with other projects.`);
-    },
-    configurable: true
-  });
-
-  // Clear all storage for this origin. Removes all data stored by any project under this origin.
-  Object.defineProperty(consoleObject, 'storage_clear_all', {
-    get() {
-      localStorage.clear();
-      sessionStorage.clear();
-      console.log(`Storage Clear All: Done!`);
-    },
-    configurable: true
-  });
-
-  // Browser localStorage
-  // Displays the current contents of the browser’s localStorage, including default entries and data from all projects. localStorage persists on disk indefinitely until explicitly cleared.
-  // Project data saved via store.js includes an expiration and will be removed the next time it’s accessed (for example, when opening a project on the same origin). Entries written by store.js use a special signature, so their raw values may appear as “garbage”. To decode them correctly, always read through store.js using storage_origin (for all projects) or storage_project (for this project).
-  Object.defineProperty(consoleObject, 'storage_local', {
-    get() {
-      console.group('● Storage Local Contents');
-      const table = [];
-      Object.keys(localStorage).forEach(fullKey => {
-        table.push({
-          Key: fullKey,
-          Value: localStorage.getItem(fullKey)
-        })
-      });
-      if (table.length > 0) {
-        console.log(`Browser localStorage: Displays the current contents of the browser's localStorage, including default entries and data from all projects. localStorage persists on disk indefinitely until explicitly cleared. Project data saved via store.js includes an expiration and will be removed the next time it's accessed (for example, when opening a project on the same origin). Entries written by store.js use a special signature, so their raw values may appear as “garbage”. To decode them correctly, always read through store.js using ${_consoleObjectName}.storage_origin (for all projects) or ${_consoleObjectName}.storage_project (for this project).`)
-        console.table(table);
-      }
-      else {
-        console.log('Storage Local is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Browser sessionStorage
-  // Displays the current contents of the browser’s sessionStorage, including default entries and data from all projects. Browser sessionStorage persists for the lifetime of the tab—surviving reloads but cleared when the tab is closed. store.js uses this as a fallback storage mechanism.
-  Object.defineProperty(consoleObject, 'storage_session', {
-    get() {
-      console.group('● Storage Session Contents');
-      const table = [];
-      Object.keys(sessionStorage).forEach(fullKey => {
-        table.push({
-          Key: fullKey,
-          Value: sessionStorage.getItem(fullKey)
-        })
-      });
-      if (table.length > 0) {
-        console.log(`Browser sessionStorage: Displays the current contents of the browser's sessionStorage, including default entries and data from all projects. Browser sessionStorage persists for the lifetime of the tab—surviving reloads but cleared when the tab is closed. store.js uses this as a fallback storage mechanism.`)
-        console.table(table);
-      }
-      else {
-        console.log('Storage Session is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Project's storage using store.js
-  Object.defineProperty(consoleObject, 'storage_project', { // dp.storage_project
-    get() {
-      console.group('● Storage Project Contents');
-      const table = [];
-      const PRE = '__storejs___storejs_';
-      const SEP = '_expire_mixin_';
-      Object.keys(localStorage).forEach(fullKey => {
-        if (fullKey.startsWith(PRE) && fullKey.indexOf(SEP, PRE.length) !== -1) {
-          const rem = fullKey.slice(PRE.length);
-          const [nsName, actualKey] = rem.split(SEP, 2);
-          if (nsName === PROJ_NAMESPACE) {
-            const expiresAt = STORAGE.getExpiration(actualKey);
-            const isExpired = expiresAt != null && Date.now() > expiresAt;
-            table.push({
-              Namespace: PROJ_NAMESPACE,
-              Key: actualKey,
-              Value: STORAGE.get(actualKey),
-              Validity: expiresAt
-                ? new Date(expiresAt).toLocaleString()   // local date/time
-                : null,
-              Expired: isExpired
-            });
-          }
-        }
-      });
-      if (table.length > 0) {
-        console.table(table);
-      }
-      else {
-        console.log('Storage Project is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // All Projects at this origin storage using store.js
-  Object.defineProperty(consoleObject, 'storage_origin', { // dp.storage_origin
-    get() {
-      console.group('● Storage Origin Contents');
-      const table = [];
-      const PRE = '__storejs___storejs_';
-      const SEP = '_expire_mixin_';
-      Object.keys(localStorage).forEach(fullKey => {
-        if (fullKey.startsWith(PRE) && fullKey.indexOf(SEP, PRE.length) !== -1) {
-          const rem = fullKey.slice(PRE.length);
-          const [nsName, actualkey] = rem.split(SEP, 2);
-          const nsStore = store.namespace(nsName);
-          const expiresAt = nsStore.getExpiration(actualkey);
-          const isExpired = expiresAt != null && Date.now() > expiresAt;
-          table.push({
-            Namespace: nsName.length > 0 ? nsName : null,
-            Key: actualkey,
-            Value: nsStore.get(actualkey),
-            Validity: expiresAt
-              ? new Date(expiresAt).toLocaleString()   // local date/time
-              : null,
-            Expired: isExpired
-          });
-        }
-      });
-      if (table.length > 0) {
-        console.table(table);
-      }
-      else {
-        console.log('Storage Origin is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Primary nav tree (modified version of doxygen NAVTREE) in table format
-  Object.defineProperty(consoleObject, 'navtree_default_table_format', { // dp.pri_tree_table_format
-    get() {
-      console.group('● Default Nav Tree');
-      displayDefNavTree(false);
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Primary nav tree (modified version of doxygen NAVTREE) in group format
-  Object.defineProperty(consoleObject, 'navtree_default_group_format', { // dp.pri_tree_group_format
-    get() {
-      console.group('● Default Nav Tree');
-      displayDefNavTree(true);
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Primary nav tree (modified version of doxygen NAVTREE) in table format
-  Object.defineProperty(consoleObject, 'primary_tree_table_format', { // dp.pri_tree_table_format
-    get() {
-      console.group('● Primary Nav Tree');
-      if (_priTree.length > 0) {
-        printTreeTableFormat(_priTree);
-      }
-      else {
-        console.log('Primary Nav Tree is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Primary nav tree (modified version of doxygen NAVTREE) in group format
-  Object.defineProperty(consoleObject, 'primary_tree_group_format', { // dp.pri_tree_group_format
-    get() {
-      console.group('● Primary Nav Tree');
-      if (_priTree.length > 0) {
-        printTreeGroupFormat(_priTree);
-      }
-      else {
-        console.log('Primary Nav Tree is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Primary nav tree (modified version of doxygen NAVTREE) discarded data in table format
-  Object.defineProperty(consoleObject, 'missed_html_pages', { // dp.pri_tree_discarded_table_format
-    get() {
-      console.group('● Missed HTML Pages List');
-      if (_missedHtmlPages.length > 0) {
-        console.table(_missedHtmlPages);
-      }
-      else {
-        console.log('Missed HTML Pages List is EMPTY');
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Secondary tree (member signatures for class and struct) in table format
-  Object.defineProperty(consoleObject, 'sec_tree_table_format', { // dp.sec_tree_table_format
-    get() {
-      console.group('● Secondary Tree');
-      if (_secTree.length > 0) {
-        printTreeTableFormat(_secTree);
-      }
-      else {
-        console.log(`Secondary Tree is EMPTY: ${_secTreeRemarks}`);
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Secondary tree (member signatures for class and struct) in group format
-  Object.defineProperty(consoleObject, 'sec_tree_group_format', { // dp.sec_tree_group_format
-    get() {
-      console.group('● Secondary Tree');
-      if (_secTree.length > 0) {
-        printTreeGroupFormat(_secTree);
-      }
-      else {
-        console.log(`Secondary Tree is EMPTY: ${_secTreeRemarks}`);
-      }
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Secondary tree (member signatures for class and struct) remarks
-  Object.defineProperty(consoleObject, 'sec_tree_remarks', { // dp.sec_tree_remarks
-    get() {
-      console.log(`Secondary Tree Remarks: ${_secTreeRemarks}`);
-    },
-    configurable: true
-  });
-
-  // Displays the information
-  Object.defineProperty(consoleObject, 'info', { // dp.info
-    get() {
-      console.group('● Doxy Plus Debug Information:');
-
-      console.log(`● ${_consoleObjectName}.info\n\nThis information ouput`);
-
-      console.log(`● ${_consoleObjectName}.project_root\n\nProject root location: If the project is hosted on GitHub, the root is the origin URL plus the repository name; otherwise, it defaults to the local folder path on disk.`);
-
-      console.log(`● ${_consoleObjectName}.project_namespace\n\nProject storage namespace.\n\nThis namespace is used by store.js to store project data. By default, store.js uses the browser's localStorage, which namespaces data by origin. As a result, projects sharing the same origin (e.g. some.com/proj_a and some.com/proj_b) will share the same storage. Likewise, projects loaded from different disk locations (e.g. D:/file/proj_a and E:/other/proj_b) also end up using the same localStorage.\n\nTo prevent one project's data from overwriting another's, we use store.js's namespace feature. Assigning each project its own namespace ensures that data remains isolated and cannot conflict with other projects.`);
-
-      console.log(`● ${_consoleObjectName}.storage_clear_all\n\nClear all storage for this origin. Removes all data stored by any project under this origin.`)
-
-      console.log(`● ${_consoleObjectName}.storage_local\n\nBrowser localStorage.\n\nDisplays the current contents of the browser's localStorage, including default entries and data from all projects. localStorage persists on disk indefinitely until explicitly cleared.\n\nProject data saved via store.js includes an expiration and will be removed the next time it's accessed (for example, when opening a project on the same origin). Entries written by store.js use a special signature, so their raw values may appear as “garbage”. To decode them correctly, always read through store.js using:\n- ${_consoleObjectName}.storage_origin: All projects)\n- ${_consoleObjectName}.storage_project: This project`);
-
-      console.log(`● ${_consoleObjectName}.storage_session\n\nBrowser sessionStorage\n\nDisplays the current contents of the browser's sessionStorage, including default entries and data from all projects. Browser sessionStorage persists for the lifetime of the tab—surviving reloads but cleared when the tab is closed.\n\nstore.js uses this as a fallback storage mechanism.`);
-
-      console.log('● storage_project: Project storage using store.js');
-      console.log('● storage_origin: All Projects at this origin storage using store.js');
-      console.log('● pri_tree_table_format: Primary nav tree (modified version of doxygen NAVTREE) in table format');
-      console.log('● pri_tree_group_format: Primary nav tree (modified version of doxygen NAVTREE) in group format');
-      console.log('● pri_tree_discarded_table_format: Primary nav tree (modified version of doxygen NAVTREE) discarded data in table format');
-      console.log('● pri_tree_discarded_group_format: Primary nav tree (modified version of doxygen NAVTREE) discarded data in group format');
-      console.log('● sec_tree_table_format: Secondary tree (member signatures for class and struct) in table format');
-      console.log('● sec_tree_group_format: Secondary tree (member signatures for class and struct) in group format');
-      console.log('● sec_tree_remarks: Secondary tree (member signatures for class and struct) remarks');
-      console.groupEnd();
-    },
-    configurable: true
-  });
-
-  // Assign "dp" as the object for window so that it can be used as debug handler in console
-  // window.dp = Object.create(null); // if set below else will be executed. This is just for example
-  if (window.dp !== undefined) {
-    console.log('● Full Reload: "dp" already defined - "debugDoxyPlus" is the console debug handler');
-    window.debugDoxyPlus = consoleObject;
-    _consoleObjectName = 'debugDoxyPlus';
-  }
-  else {
-    console.log('● Full Reload: "dp" is the console debug handler');
-    window.dp = consoleObject;
-    _consoleObjectName = 'dp';
-  }
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // #endregion 🟥 CONSOLE OBJECT
 
   // #region 🟩 SEARCH PLACEHOLDER TWEAK
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   async function searchPlaceholderTweak() {
 
+    // this function updates the placeholder text in the search box
     async function update() {
-      const field = await waitFor('#MSearchField');
-      if (!field || !window.searchBox || !window.indexSectionLabels) {
-        console.error('Search Placeholder Tweak - Update: Required members are not available');
-        return;
+      const start = performance.now();
+      while (!window.searchBox || !window.indexSectionLabels) {
+        const elapsed = performance.now() - start;
+        if (elapsed > TIMEOUT) {
+          console.error(`Search Placeholder Tweak - Update: Timed out waiting for selector "window.searchBox" and/or "window.indexSectionLabels" after ${elapsed} ms`);
+          return;
+        }
+        //console.log(`Search Placeholder Tweak - Update: Waiting for "window.searchBox" and/or "window.indexSectionLabels" after ${elapsed} ms...`);
+        await new Promise(requestAnimationFrame);
       }
       const label = window.indexSectionLabels[window.searchBox.searchIndex] || 'All';
+      const field = await waitFor('#MSearchField');
       field.setAttribute('placeholder', `Search ${label}`);
       //console.log(`Search Placeholder Tweak - Update: SUCCESS "Search ${label}"`);
     }
 
     //await update(); // no need to call here, the window.searchBox.OnSelectItem is triggered automatically the first time
 
+    // wait till required parts are available
+    const startTimeOnSelectItem = performance.now();
+    while (!window.searchBox || !window.searchBox.OnSelectItem) {
+      const elapsed = performance.now() - startTimeOnSelectItem;
+      if (elapsed > TIMEOUT) {
+        console.error(`Search Placeholder Tweak: Timed out waiting for selector "window.searchBox" and/or "window.searchBox.OnSelectItem" after ${elapsed} ms`);
+        return;
+      }
+      //console.log(`Search Placeholder Tweak: Waiting for "window.searchBox" and/or "window.searchBox.OnSelectItem" after ${elapsed} ms...`);
+      await new Promise(requestAnimationFrame);
+    }
+
     // Run the update again when user changes the from search dropdown
-    if (window.searchBox && window.searchBox.OnSelectItem && typeof window.searchBox.OnSelectItem === 'function') {
+    if (typeof window.searchBox.OnSelectItem === 'function') {
       const orig = window.searchBox.OnSelectItem;
       window.searchBox.OnSelectItem = function (id) {
         const ret = orig.call(this, id);
-        //console.log('Search Placeholder Tweak - Search Box On Select Item Triggered');
+        //console.log('Search Placeholder Tweak: Update On Select Item Triggered');
         update();
         return ret;
       };
+    }
+    else {
+      console.error('window.searchBox.OnSelectItem is not a function');
+      return;
     }
 
     // The search bar updates when resizing, so listen to it, debounce till it settles and then call updatePlaceholder
@@ -866,7 +476,7 @@ File Names: doxy-plus.*
             _dualNav = !_dualNav;
             img.src = DOC_ROOT + (_dualNav ? ICON_DUAL_NAV : ICON_SIDE_NAV);
             save(KEY__DUAL_NAV, _dualNav)
-            setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
+            //setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
             //console.log(`Sidebar Toggle Button - Click: DualNav = ${_dualNav}`);
           });
 
@@ -874,9 +484,9 @@ File Names: doxy-plus.*
           //console.log('Sidebar Toggle Button - Setup: New Button');
         }
       }
-      else {
-        //console.log('Sidebar Toggle Button - Setup: Width < 768');
-      }
+      //else {
+      //  console.log('Sidebar Toggle Button - Setup: Width < 768');
+      //}
       mo.observe(itemSearchBox, { childList: true });
     }
     const mo = new MutationObserver(setup);
@@ -1069,15 +679,13 @@ File Names: doxy-plus.*
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 DUAL NAV FUNCTIONS
 
-  // #region 🟩 DEF NAVTREE
+  // #region 🟩 GEN DEF TREE
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  async function genDefNavTree() {
-
-    // helper to wait one animation frame
-    const frame = () => new Promise(requestAnimationFrame);
+  async function genDefTree() {
 
     // wait until NAVTREE[0][2] exists and is a non-empty array
+    const start = performance.now();
     while (
       !window.NAVTREE ||
       !Array.isArray(window.NAVTREE) ||
@@ -1086,8 +694,13 @@ File Names: doxy-plus.*
       window.NAVTREE[0].length < 3 ||
       !Array.isArray(window.NAVTREE[0][2])
     ) {
-      console.log('Gen Def Nav Tree: Waiting for NAVTREE to be initialized…');
-      await frame();
+      const elapsed = performance.now() - start;
+      if (elapsed > TIMEOUT) {
+        console.error(`Gen Def Tree: Timed out waiting for selector "NAVTREE[0][2]" after ${elapsed} ms`);
+        return null;
+      }
+      console.log(`Gen Def Tree: Waiting for "NAVTREE[0][2]" after ${elapsed} ms...`);
+      await new Promise(requestAnimationFrame);
     }
 
     function cloneTree(tree) {
@@ -1132,26 +745,12 @@ File Names: doxy-plus.*
     // clone the default tree, load children, and return it
     const defTree = cloneTree(window.NAVTREE[0][2]);
     await loadChildren(defTree);
+    console.log('Gen Def Tree: SUCCESS');
     return defTree;
   }
 
-  async function displayDefNavTree(groupFormat = true) {
-    const defNavTree = await genDefNavTree();
-    if (defNavTree.length > 0) {
-      if (groupFormat) {
-        printTreeGroupFormat(defNavTree);
-      }
-      else {
-        printTreeTableFormat(defNavTree);
-      }
-    }
-    else {
-      console.log('Default Nav Tree is EMPTY');
-    }
-  }
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // #endregion 🟥 DEF NAVTREE
+  // #endregion 🟥 GEN DEF TREE
 
   // #region 🟩 GEN PRI TREE
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1161,7 +760,6 @@ File Names: doxy-plus.*
     // setting the two array's lengths as 0 so that it is reinitialized
     // while maintaining previous links
     _priTree.length = 0;
-    _missedHtmlPages.length = 0;
 
     // read the previous stored doxygen time (returns null if nothing was stored)
     const prvDoxyTime = load(KEY__GEN_DATA);
@@ -1185,19 +783,16 @@ File Names: doxy-plus.*
     if (prvDoxyTime != null && prvDoxyTime === curDoxyTime) {
       const priTree = load(KEY__PRI_TREE);
       if (priTree != null && Array.isArray(priTree) && priTree.length > 0) {
+        // assign the primary tree
         _priTree = priTree;
 
-        const missedHtmlPages = load(KEY__MISSED_HTML_PAGES);
-        if (missedHtmlPages != null && Array.isArray(missedHtmlPages) && missedHtmlPages.length > 0) {
-          _missedHtmlPages = missedHtmlPages;
-          showToast(`Primary Tree has missed HTML pages. Look for '${_consoleObjectName}.missed_html_pages' in console for details`, true);
-        }
-
+        // saving so that expiry time is updated
         save(KEY__GEN_DATA, curDoxyTime);
         save(KEY__PRI_TREE, _priTree);
-        save(KEY__MISSED_HTML_PAGES, _missedHtmlPages);
 
         //console.log(`Gen Pri Tree: Loaded from Session Storage`);
+
+        // return since there is no need to process any further data in this function
         return;
       }
     }
@@ -1254,6 +849,12 @@ File Names: doxy-plus.*
 
     // get the default NAVTREE
     const defTree = await genDefNavTree();
+    if (!Array.isArray(defTree) || defTree.length === 0) {
+      console.warn('Gen Pri Tree: Default tree returned by "genDefTree" is either not an array or is empty');
+      return;
+    }
+
+    _priTree.push(['Bet A', null, null]);
 
     const nsListNode = findNodeByNameList(defTree, 'Namespaces', 'Namespace List');
     if (nsListNode) {
@@ -1265,6 +866,7 @@ File Names: doxy-plus.*
         }
       }
     }
+    _priTree.push(['Bet B', null, null]);
 
     const nsMemNode = findNodeByNameList(defTree, 'Namespaces', 'Namespace Members');
     if (nsMemNode) {
@@ -1352,7 +954,6 @@ File Names: doxy-plus.*
       }
     }
 
-
     const filesNode = findNodeByNameList(defTree, 'Files', 'File List');
     if (filesNode) {
       const [, href, kids] = filesNode;
@@ -1403,41 +1004,8 @@ File Names: doxy-plus.*
 
     _priTree.push(['Ind C', null, null]);
 
-    const seenHtml = new Set();
-    (function markSeen(tree) {
-      if (!Array.isArray(tree) || tree.length === 0) return;
-      for (const [, href, kids] of tree) {
-        if (typeof href === 'string' && IS_HTML_END.test(href) && !seenHtml.has(href)) seenHtml.add(href);
-        if (Array.isArray(kids)) markSeen(kids);
-      }
-    })(_priTree);
-
-    const collected = new Set();
-    (function collect(tree, parName = '') {
-      if (!Array.isArray(tree) || tree.length === 0) return;
-      for (const [name, href, kids] of tree) {
-        const fullName = parName === '' ? name : parName + " → " + name;
-        if (typeof href === 'string') {
-          const link = href.replace(/(\.html)#.*$/, '$1');
-          if (IS_HTML_END.test(link) && !seenHtml.has(link) && !collected.has(link)) {
-            collected.add(link);
-            _missedHtmlPages.push({ Name: fullName, Link: link });
-          }
-        }
-        if (Array.isArray(kids)) {
-          collect(kids, fullName);
-        }
-      }
-    })(defTree);
-
-
-    if (_missedHtmlPages.length > 0) {
-      showToast(`Primary Tree has missed HTML pages. Look for '${_consoleObjectName}.missed_html_pages' in console for details`, true);
-    }
-
     save(KEY__GEN_DATA, curDoxyTime);
     save(KEY__PRI_TREE, _priTree);
-    save(KEY__MISSED_HTML_PAGES, _missedHtmlPages);
 
     //console.log(`Gen Pri Tree: Generated`);
   }
@@ -1447,40 +1015,6 @@ File Names: doxy-plus.*
 
   // #region 🟩 GEN SEC TREE
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  function formatMemSigs(text) {
-    if (typeof text !== 'string') return text;
-
-    return text
-      // Remove space before *, &, &&
-      .replace(/\s+([*&]{1,2})/g, '$1')
-      // Ensure space after *, &, &&
-      .replace(/([*&]{1,2})(?!\s)/g, '$1 ')
-
-      // Remove spaces inside <...>
-      .replace(/<\s+/g, '<')
-      .replace(/\s+>/g, '>')
-      .replace(/\s+<\s+/g, '<')
-      .replace(/\s+>\s+/g, '>')
-
-      // Remove space before commas, ensure one after
-      .replace(/\s+,/g, ',')
-      .replace(/,(?!\s)/g, ', ')
-
-      // Remove space after ( and before )
-      .replace(/\(\s+/g, '(')
-      .replace(/\s+\)/g, ')')
-
-      // ❗ Remove space before (
-      .replace(/\s+\(/g, '(')
-
-      // Add space before and after = in special cases
-      .replace(/\s*=\s*(default|delete|0)/g, ' = $1')
-
-      // Collapse multiple spaces and trim
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-  }
 
   async function genSecTree() {
 
@@ -1512,6 +1046,40 @@ File Names: doxy-plus.*
       _secTreeRemarks = 'Empty "table.memberdecls" element array';
       //console.log('Gen Sec Tree: Empty "table.memberdecls" element array');
       return;
+    }
+
+    function formatSignature(text) {
+      if (typeof text !== 'string') return text;
+
+      return text
+        // Remove space before *, &, &&
+        .replace(/\s+([*&]{1,2})/g, '$1')
+        // Ensure space after *, &, &&
+        .replace(/([*&]{1,2})(?!\s)/g, '$1 ')
+
+        // Remove spaces inside <...>
+        .replace(/<\s+/g, '<')
+        .replace(/\s+>/g, '>')
+        .replace(/\s+<\s+/g, '<')
+        .replace(/\s+>\s+/g, '>')
+
+        // Remove space before commas, ensure one after
+        .replace(/\s+,/g, ',')
+        .replace(/,(?!\s)/g, ', ')
+
+        // Remove space after ( and before )
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')')
+
+        // ❗ Remove space before (
+        .replace(/\s+\(/g, '(')
+
+        // Add space before and after = in special cases
+        .replace(/\s*=\s*(default|delete|0)/g, ' = $1')
+
+        // Collapse multiple spaces and trim
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     }
 
     const headers = Array.from(contents.querySelectorAll("h2.groupheader"));
@@ -1547,7 +1115,7 @@ File Names: doxy-plus.*
         const lftText = tds[0].innerText.replace(/\s+/g, ' ').trim();
         const ritText = tds[1].innerText.replace(/\s+/g, ' ').trim();
         let leafNameTemp = `${lftText} ${ritText}`.trim();
-        let leafName = formatMemSigs(leafNameTemp);
+        let leafName = formatSignature(leafNameTemp);
         if (leafName.startsWith('enum')) {
           leafName = leafName.replace(/\s*\{[\s\S]*\}/, '').trim();
         }
@@ -1578,6 +1146,80 @@ File Names: doxy-plus.*
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 GEN SEC TREE
+
+  // #region 🟩 DISPLAY DEF TREE
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  async function displayDefTree(groupFormat = true) {
+    const defTree = await genDefTree();
+    if (Array.isArray(defTree) && defTree.length > 0) {
+      if (groupFormat) {
+        printTreeGroupFormat(defTree);
+      }
+      else {
+        printTreeTableFormat(defTree);
+      }
+    }
+    else {
+      console.log('Default Tree is EMPTY');
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // #endregion 🟥 DISPLAY DEF TREE
+
+  // #region 🟩 DISPLAY MISSED HTML PAGES
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  async function displayMissedHtmlPages() {
+
+    const seenHtml = new Set();
+    if (Array.isArray(_priTree) && _priTree.length > 0) {
+      (function markSeen(tree) {
+        if (!Array.isArray(tree) || tree.length === 0) return;
+        for (const [, href, kids] of tree) {
+          if (typeof href === 'string' && IS_HTML_END.test(href) && !seenHtml.has(href)) seenHtml.add(href);
+          if (Array.isArray(kids)) markSeen(kids);
+        }
+      })(_priTree);
+    }
+
+    const defTree = await genDefTree();
+    if (Array.isArray(defTree) && defTree.length > 0) {
+      const collected = new Set();
+      let missedPages = [];
+      (function collect(tree, parName = '') {
+        if (!Array.isArray(tree) || tree.length === 0) return;
+        for (const [name, href, kids] of tree) {
+          const fullName = parName === '' ? name : parName + " → " + name;
+          if (typeof href === 'string') {
+            const link = href.replace(/(\.html)#.*$/, '$1');
+            if (IS_HTML_END.test(link) && !seenHtml.has(link) && !collected.has(link)) {
+              collected.add(link);
+              missedPages.push({ Name: fullName, Link: link });
+            }
+          }
+          if (Array.isArray(kids)) {
+            collect(kids, fullName);
+          }
+        }
+      })(defTree);
+
+      if (missedPages.length > 0) {
+        console.log('Below is a list of all HTML pages that are present in default NAVTREE but are not included in Primary Tree shown with Dual Navigation Sidebar style.')
+        console.table(missedPages);
+      }
+      else {
+        console.log('Generated Primary Tree of Dual Navigation Sidebar has all the HTML Pages that are present in default NAVTREE');
+      }
+    }
+    else {
+      console.error('Unable to get Default NAVTREE');
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // #endregion 🟥 DISPLAY MISSED HTML PAGES
 
   // #region 🟩 STABILIZE DOC MARGIN
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1775,6 +1417,30 @@ File Names: doxy-plus.*
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 ADJUST X AND H
 
+  // #region 🟩 BUILD TREE
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  function buildTree(primary = true) {
+
+    const [tree, defExp, keyName, setExpCol] = primary
+      ? [_priTree, false, KEY__PRI_NAV_EXPANDED_NODES, _priExpNodes]
+      : [_secTree, true, HTML_NAME, _secColNodes];
+
+    if (!Array.isArray(tree) || tree.length === 0) {
+      const treeName = primary ? '_priTree' : '_secTree';
+      console.log(`Build Tree: "${treeName}" is either not an array or is empty. Returning`);
+      return;
+    }
+
+    const doSave = typeof keyName === 'string' && keyName.length > 0;
+    if (doSave) {
+
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // #endregion 🟥 BUILD TREE
+
   // #region 🟩 URL ANCHOR HASH LISTNER
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1782,209 +1448,60 @@ File Names: doxy-plus.*
     // This function is called whenever the anchor part (i.e. tge hash part of ...html#...) in the URL changess
     if (_secTree.length > 0) {
       //setCurrentTreeItem('#dp-sec-nav .dp-tree-link', window.location.hash);
-      onHashChange();
+      urlHashChanged();
     }
   }, false);
 
-  async function onHashChange() {
-    const sec = await waitFor('#dp-sec-nav');
-    setCurrentTreeItem(sec, true);
+  async function urlHashChanged() {
+    //const sec = await waitFor('#dp-sec-nav');
+    //setCurrentTreeItem(sec, true);
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 URL ANCHOR HASH LISTNER
 
-  // #region 🟩 BUILD TREE
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  function buildTree(tree, defExpanded = false, keyExpCol = '', addRoot = false) {
-
-    if (!Array.isArray(tree) || tree.length === 0) {
-      console.log('Build Tree: Passed tree is either not an array or is empty. Returning');
-      return;
-    }
-
-    const doSave = typeof keyExpCol === 'string' && keyExpCol.length > 0;
-    let aryExpCol = [];
-    if (doSave) {
-      const rawExpCol = load(keyExpCol, []);
-      if (Array.isArray(rawExpCol)) {
-        aryExpCol = rawExpCol;
-      }
-      else {
-        console.warn(`Build Tree: expected an array for "${keyExpCol}", got:`, rawExpCol);
-      }
-    }
-    const setExpCol = new Set(aryExpCol);
-
-    const curExpandableNodes = new Set();
-
-    function builder(branch, level = []) {
-
-      const list = document.createElement('ul');
-      list.classList.add('dp-tree-list');
-
-      branch.forEach(([name, path, kids], idx) => {
-
-        const href = (typeof path === 'string' && path.length > 0) ? (addRoot ? DOC_ROOT + path : path) : null;
-
-        const item = document.createElement('li');
-        item.classList.add('dp-tree-item');
-        const line = document.createElement('div');
-        line.classList.add('dp-tree-line');
-        const node = document.createElement('button');
-        node.classList.add('dp-tree-node');
-        const link = document.createElement('a');
-        link.classList.add('dp-tree-link');
-
-        line.append(node, link);
-        item.appendChild(line);
-
-        if (href) {
-          link.href = href;
-        } else {
-          link.removeAttribute('href');
-          link.setAttribute('aria-disabled', 'true');
-          link.style.cursor = 'default';
-          link.setAttribute('tabindex', '-1');
-        }
-        link.textContent = name;
-
-        link.addEventListener('click', () => item.classList.add('dp-visited'));
-
-        if (Array.isArray(kids) && kids.length > 0) {
-
-          // build a stable ID: either the file base name, or the path of indices
-          const thisLevel = [...level, idx];
-          const fileBase = href
-            ? path.split('/').pop().replace(/\..*$/, '')
-            : null;
-          const id = fileBase || thisLevel.join('.');
-
-          item.classList.add('dp-has-children');
-          curExpandableNodes.add(id);
-
-          const isOpen = defExpanded ? !setExpCol.has(id) : setExpCol.has(id);
-          node.textContent = isOpen ? '○' : '●';
-          if (isOpen) {
-            item.classList.add('dp-node-open');
-          }
-
-          node.addEventListener('click', e => {
-            e.stopPropagation();
-            const nowOpen = item.classList.toggle('dp-node-open');
-            node.textContent = nowOpen ? '○' : '●';
-
-            if (defExpanded) {
-              nowOpen ? setExpCol.delete(id) : setExpCol.add(id);
-            }
-            else {
-              nowOpen ? setExpCol.add(id) : setExpCol.delete(id);
-            }
-
-            if (doSave) {
-              save(keyExpCol, Array.from(setExpCol));
-            }
-          });
-
-          item.appendChild(builder(kids, thisLevel));
-        }
-        else {
-          node.style.visibility = 'hidden';
-        }
-
-        list.appendChild(item);
-      });
-
-      return list;
-    }
-
-    const built = builder(tree);
-
-    // Prune any IDs no longer present
-    for (const id of [...setExpCol]) {
-      if (!curExpandableNodes.has(id)) {
-        setExpCol.delete(id);
-      }
-    }
-
-    if (doSave) {
-      save(keyExpCol, Array.from(setExpCol));
-    }
-
-    return built;
-  }
-
-  function setCurrentTreeItem(container, useHash = false) {
-
-    const prev = container.querySelector('.dp-current');
-    if (prev) {
-      const prevLink = prev.querySelector('.dp-tree-link[href]');
-      if (prevLink) {
-        console.log('Previous href:', prevLink.getAttribute('href'));
-      }
-      prev.classList.remove('dp-current');
-    }
-
-    const target = useHash ? window.location.hash : window.location.href.split('#')[0];
-    if (!target) return;
-
-    //console.log('----', useHash, target, window.location.href);
-
-    const links = container.querySelectorAll('.dp-tree-link[href]');
-    for (const link of links) {
-      //console.log('--', useHash, link.getAttribute('href'));
-      if (link.getAttribute('href') === target) {
-
-
-        // 3. mark the new current item
-        const item = link.closest('.dp-tree-item');
-        item.classList.add('dp-current');
-
-        // 4. expand all ancestor nodes
-        let parentItem = item.parentElement.closest('.dp-tree-item');
-        while (parentItem) {
-          parentItem.classList.add('dp-node-open');
-          const btn = parentItem.querySelector(':scope > .dp-tree-line > .dp-tree-node');
-          if (btn) btn.textContent = '○';
-          parentItem = parentItem.parentElement.closest('.dp-tree-item');
-        }
-
-        // 5. scroll it into view
-        item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-        break;
-      }
-    }
-  }
-
-  async function buildTree_init() {
-    const [pri, sec] = await Promise.all([waitFor('#dp-pri-nav'), waitFor('#dp-sec-nav')]);
-    pri.innerHTML = '';
-    pri.appendChild(buildTree(_priTree, false, KEY__PRI_NAV_EXPANDED_NODES, true));
-    setCurrentTreeItem(pri, false);
-    if (_secTree.length > 0) {
-      sec.innerHTML = '';
-      sec.appendChild(buildTree(_secTree, true, HTML_NAME, false));
-      setCurrentTreeItem(sec, true);
-    }
-  }
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // #endregion 🟥 BUILD TREE
-
   // #region 🟩 DOCUMENT DOM LOADING CALLS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+  const mainSet = new Set([1, 2]);
+  const mainAry = [1, 2];
+  console.log('BEFORE:', mainSet); // Set {1, 2}
+  console.log('BEFORE:', mainAry); // [1, 2]
+
+  function someFunc() {
+    let tempSet = mainSet;
+    let tempAry = mainAry;
+
+    tempSet.add(3);
+    tempAry.push(3);
+  }
+
+  someFunc();
+
+  console.log('AFTER:', mainSet); // Set {1, 2, 3}
+  console.log('AFTER:', mainAry); // [1, 2, 3]
+
+  async function checkTimeout() {
+    const start = performance.now();
+    while (true) {
+      const rem = performance.now() - start;
+      if (rem > TIMEOUT) {
+        console.log(`END: ${rem}`);
+        break;
+      }
+      else {
+        console.log(`RUN: ${rem}`);
+        await new Promise(requestAnimationFrame);
+      }
+    }
+  }
 
   async function docOnReady() {
     searchPlaceholderTweak();
     sideNavTweak();
     sidebarToggleButton();
     dualNavResizer();
-    await genPriTree();
-    await genSecTree();
-    setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
-    adjustXandH_init();
-    buildTree_init();
   }
 
   if (document.readyState === 'loading') {
