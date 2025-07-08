@@ -256,7 +256,7 @@ body {
 }
 
 li.dp-current > .dp-tree-line {
-  background-color: rgb(255, 0, 0) !important;
+  background-color: rgb(255, 250, 0) !important;
 }
 
 li.dp-has-children > ul {
