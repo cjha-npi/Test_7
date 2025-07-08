@@ -31,6 +31,7 @@ File Names: doxy-plus.*
   const IS_HTML_END = /\.(?:xhtml|html)$/i; // case-insensitive check for a string ending in either .xhtml or .html
   const TIMEOUT = 2000;
 
+  console.log('window.DOXY_PLUS_DATE_TIME', window.DOXY_PLUS_DATE_TIME);
   const DOXY_TIME = (() => {
     let footerEl = document.querySelector('#nav-path li.footer') || document.querySelector('address.footer small');
     if (footerEl) {
