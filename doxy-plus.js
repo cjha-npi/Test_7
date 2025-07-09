@@ -133,28 +133,58 @@ File Names: doxy-plus.*
   // #region 🟩 CHECK RELOAD STATUS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  async function checkThisUrl(url) {
-    if (!url.startsWith(DOC_ROOT)) {
-      console.warn(`URL: ${url} does not start with DOC_ROOT: ${DOC_ROOT}`);
+  async function checkThisUrl(urlStr) {
+    if (!urlStr.startsWith(DOC_ROOT)) {
+      console.warn(`URL: ${urlStr} does not start with DOC_ROOT: ${DOC_ROOT}`);
       return null;
     }
 
-    const isRemote = url.protocol === 'http:' || url.protocol === 'https:';
-    console.log(`${url} with protocol ${url.protocol} is remote: ${isRemote}`);
-
-    // 4) HEAD-check only for remote pages
-    if (isRemote) {
-      try {
-        const headResp = await fetch(url.href, { method: 'HEAD' });
-        if (!headResp.ok) {
-          console.error('HEAD request failed:', headResp.status);
-          return null;
-        }
-      } catch (e) {
-        console.error('Network/HEAD error:', e);
-        return null;
-      }
+    let url;
+    // 1) Parse & syntax-check
+    try {
+      url = new URL(urlStr, window.location.href);
+    } catch (e) {
+      console.error('Invalid URL:', e);
+      return null;
     }
+
+    console.log(`${urlStr} -> ${url}`);
+
+    function loadDocumentInIframe(srcUrl, timeout = 5000) {
+      return new Promise((resolve, reject) => {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = srcUrl;
+
+        let timer = setTimeout(() => {
+          cleanup();
+          reject(new Error('Iframe load timeout'));
+        }, timeout);
+
+        function cleanup() {
+          clearTimeout(timer);
+          iframe.removeEventListener('load', onLoad);
+          document.body.removeChild(iframe);
+        }
+
+        function onLoad() {
+          try {
+            const doc = iframe.contentDocument;
+            if (!doc) throw new Error('No contentDocument');
+            cleanup();
+            resolve(doc);
+          } catch (e) {
+            cleanup();
+            reject(e);
+          }
+        }
+
+        iframe.addEventListener('load', onLoad);
+        document.body.appendChild(iframe);
+      });
+    }
+
+
   }
 
   const isReload = (sessionStorage.getItem('is_reload') === 'true')
@@ -166,7 +196,7 @@ File Names: doxy-plus.*
   console.log('Prev URL:', prevHref);
   console.log('Current URL:', window.location.href);
   console.log('DOC_ROOT', DOC_ROOT);
-  if (prevHref){
+  if (prevHref) {
     console.log('Prev URL Starts Width DOC_ROOT:', prevHref.startsWith(DOC_ROOT));
     checkThisUrl(prevHref);
   }
