@@ -142,6 +142,8 @@ File Names: doxy-plus.*
   console.log('Prev URL:', prevHref);
   console.log('Current URL:', window.location.href);
   console.log('DOC_ROOT', DOC_ROOT);
+  if(prevHref) console.log('Prev URL Starts Width DOC_ROOT:', prevHref.startsWith(DOC_ROOT));
+  console.log('Current URL Starts With DOC_ROOT:', window.location.href.startsWith(DOC_ROOT));
   console.groupEnd();
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
