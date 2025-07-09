@@ -141,6 +141,7 @@ File Names: doxy-plus.*
   console.log('Is Reload:', isReload);
   console.log('Prev URL:', prevHref);
   console.log('Current URL:', window.location.href);
+  console.log('DOC_ROOT', DOC_ROOT);
   console.groupEnd();
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
