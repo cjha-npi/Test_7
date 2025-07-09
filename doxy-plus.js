@@ -10,16 +10,19 @@ File Names: doxy-plus.*
 ; (function ($) {
   'use strict';
 
+
   // #region 🟩 CONSTANTS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   // Storage Keys
+  const KEY__PREV_URL = 'prev_url';
   const KEY__DUAL_NAV = 'dual_nav'; // key by which dual nav enabled state is stored
   const KEY__PRI_WIDTH = 'pri_width'; // key by which width of the dual nav -> primary pane is stored
   const KEY__SEC_WIDTH = 'sec_width'; // key by which width of the dual nav -> secondary pane is stored
   const KEY__GEN_DATA = 'gen_data'; // key by which the doxygen generation time is stored
   const KEY__PRI_TREE = 'pri_tree'; // key by which primary tree for dual nav is stored
   const KEY__PRI_NAV_EXPANDED_NODES = 'pri_nav_expanded_nodes'; // key by which primary nav's already expanded nodes are stored
+
 
   // Constant Values
   const ICON_SIDE_NAV = 'doxy-plus-side-nav.png'; // name for the icon that shows the side nav symbol
@@ -29,34 +32,7 @@ File Names: doxy-plus.*
   const MEDIA_QUERY_WIN_WIDTH = window.matchMedia('(min-width: 768px)'); // a MediaQueryList for “min-width: 768px”, later used to set the correct layout
   const TIME_TO_LIVE = 10 * 60 * 1000; // 10 minutes, time for a storage variable to be considered stale. 7 * 24 * 60 * 60 * 1000 == 7 Days, 30 * 24 * 60 * 60 * 1000 == 30 Days
   const IS_HTML_END = /\.(?:xhtml|html)$/i; // case-insensitive check for a string ending in either .xhtml or .html
-  const TIMEOUT = 2000;
-
-  console.log('window.DOXY_PLUS_DATE_TIME', window.DOXY_PLUS_DATE_TIME);
-  const DOXY_TIME = (() => {
-    let footerEl = document.querySelector('#nav-path li.footer') || document.querySelector('address.footer small');
-    if (footerEl) {
-      const text = footerEl.textContent || footerEl.innerText;
-      const match = text.match(/Generated\s+on\s+(.+)/i);
-      if (match) {
-        return match[1].trim();
-      }
-      else {
-        console.error('Footer element found, but no text match could be generated');
-        return '';
-      }
-    }
-    else {
-      console.warn('Footer element not found!');
-      return '';
-    }
-  })();
-  console.log('FOOTER:', DOXY_TIME);
-
-  const lastModString = document.lastModified;
-  const lastModDate = new Date(lastModString);
-  console.log('document.lastModified:', lastModDate.toLocaleString());
-
-  
+  const TIMEOUT_MS = 2000; // time milliseconds till timeout while waiting for an element in DOM
 
   const DOC_ROOT = (() => {
     // Determine the base path (DOC_ROOT) of the current documentation site.
@@ -149,8 +125,26 @@ File Names: doxy-plus.*
 
   const STORAGE = store.namespace(PROJ_NAMESPACE);
 
+  
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 CONSTANTS
+
+  // #region 🟩 CHECK RELOAD STATUS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const isReload = (sessionStorage.getItem('is_reload') === 'true')
+  sessionStorage.setItem('is_reload', 'true');
+  const prevHref = load(KEY__PREV_URL);
+  save(KEY__PREV_URL, window.location.href);
+  console.group('--- URL ---');
+  console.log('Is Reload:', isReload);
+  console.log('Prev URL:', prevHref);
+  console.log('Current URL:', window.location.href);
+  console.groupEnd();
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // #endregion 🟥 CHECK RELOAD STATUS
 
   // #region 🟩 PURGE EXPIRED STORED DATA
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -200,11 +194,11 @@ File Names: doxy-plus.*
   // booleans
   let _dualNav = load(KEY__DUAL_NAV, true);
 
-  // sets and arrays
-  let _priTree = [];
-  let _secTree = [];
-  let _priExpNodes = new Set();
-  let _secColNodes = new Set();
+  // arrays and sets
+  const _priTree = [];
+  const _secTree = [];
+  const _priExpNodes = new Set();
+  const _secColNodes = new Set();
 
   // objects
   let _adjustXandH_resizeObserver = null;
@@ -242,7 +236,7 @@ File Names: doxy-plus.*
     return isNaN(n) ? defVal : n;
   }
 
-  function debounce(fn, ms) {
+  function debounce(fn, ms = 50) {
     // A way to “coalesce” a rapid burst of events into a single call after things have settled down.
     let t;                                   // holds the pending timeout ID
     return (...args) => {                    // returns a wrapped version of `fn`
@@ -289,8 +283,8 @@ File Names: doxy-plus.*
       // Give up after timeout
       timer = setTimeout(() => {
         obs.disconnect();
-        reject(new Error(`Timed out waiting for selector "${selector}" after ${TIMEOUT} ms`));
-      }, TIMEOUT);
+        reject(new Error(`Timed out waiting for selector "${selector}" after ${TIMEOUT_MS} ms`));
+      }, TIMEOUT_MS);
     });
   }
 
@@ -342,7 +336,7 @@ File Names: doxy-plus.*
       const start = performance.now();
       while (!window.searchBox || !window.indexSectionLabels) {
         const elapsed = performance.now() - start;
-        if (elapsed > TIMEOUT) {
+        if (elapsed > TIMEOUT_MS) {
           console.error(`Search Placeholder Tweak - Update: Timed out waiting for selector "window.searchBox" and/or "window.indexSectionLabels" after ${elapsed} ms`);
           return;
         }
@@ -357,20 +351,22 @@ File Names: doxy-plus.*
 
     //await update(); // no need to call here, the window.searchBox.OnSelectItem is triggered automatically the first time
 
-    // wait till required parts are available
-    const startTimeOnSelectItem = performance.now();
-    while (!window.searchBox || !window.searchBox.OnSelectItem) {
-      const elapsed = performance.now() - startTimeOnSelectItem;
-      if (elapsed > TIMEOUT) {
-        console.error(`Search Placeholder Tweak: Timed out waiting for selector "window.searchBox" and/or "window.searchBox.OnSelectItem" after ${elapsed} ms`);
-        return;
+    if (!window.searchBox || !window.searchBox.OnSelectItem) {
+      // wait till required parts are available
+      const startTimeOnSelectItem = performance.now();
+      while (!window.searchBox || !window.searchBox.OnSelectItem) {
+        const elapsed = performance.now() - startTimeOnSelectItem;
+        if (elapsed > TIMEOUT_MS) {
+          console.error(`Search Placeholder Tweak: Timed out waiting for selector "window.searchBox" and/or "window.searchBox.OnSelectItem" after ${elapsed} ms`);
+          break;
+        }
+        //console.log(`Search Placeholder Tweak: Waiting for "window.searchBox" and/or "window.searchBox.OnSelectItem" after ${elapsed} ms...`);
+        await new Promise(requestAnimationFrame);
       }
-      //console.log(`Search Placeholder Tweak: Waiting for "window.searchBox" and/or "window.searchBox.OnSelectItem" after ${elapsed} ms...`);
-      await new Promise(requestAnimationFrame);
     }
 
     // Run the update again when user changes the from search dropdown
-    if (typeof window.searchBox.OnSelectItem === 'function') {
+    if (window.searchBox && window.searchBox.OnSelectItem && typeof window.searchBox.OnSelectItem === 'function') {
       const orig = window.searchBox.OnSelectItem;
       window.searchBox.OnSelectItem = function (id) {
         const ret = orig.call(this, id);
@@ -380,8 +376,7 @@ File Names: doxy-plus.*
       };
     }
     else {
-      console.error('window.searchBox.OnSelectItem is not a function');
-      return;
+      console.error('Search Placeholder Tweak: Unable to set on search item change');
     }
 
     // The search bar updates when resizing, so listen to it, debounce till it settles and then call updatePlaceholder
@@ -477,7 +472,7 @@ File Names: doxy-plus.*
             _dualNav = !_dualNav;
             img.src = DOC_ROOT + (_dualNav ? ICON_DUAL_NAV : ICON_SIDE_NAV);
             save(KEY__DUAL_NAV, _dualNav)
-            //setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
+            setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
             //console.log(`Sidebar Toggle Button - Click: DualNav = ${_dualNav}`);
           });
 
@@ -696,11 +691,11 @@ File Names: doxy-plus.*
       !Array.isArray(window.NAVTREE[0][2])
     ) {
       const elapsed = performance.now() - start;
-      if (elapsed > TIMEOUT) {
+      if (elapsed > TIMEOUT_MS) {
         console.error(`Gen Def Tree: Timed out waiting for selector "NAVTREE[0][2]" after ${elapsed} ms`);
         return null;
       }
-      console.log(`Gen Def Tree: Waiting for "NAVTREE[0][2]" after ${elapsed} ms...`);
+      //console.log(`Gen Def Tree: Waiting for "NAVTREE[0][2]" after ${elapsed} ms...`);
       await new Promise(requestAnimationFrame);
     }
 
@@ -746,7 +741,7 @@ File Names: doxy-plus.*
     // clone the default tree, load children, and return it
     const defTree = cloneTree(window.NAVTREE[0][2]);
     await loadChildren(defTree);
-    console.log('Gen Def Tree: SUCCESS');
+    //console.log('Gen Def Tree: SUCCESS');
     return defTree;
   }
 
@@ -765,30 +760,15 @@ File Names: doxy-plus.*
     // read the previous stored doxygen time (returns null if nothing was stored)
     const prvDoxyTime = load(KEY__GEN_DATA);
 
-    // read the current doxygen time obtained from footer
-    let curDoxyTime = null;
-    try {
-      const footerEl = await waitFor('#nav-path li.footer');
-      const text = footerEl.textContent || footerEl.innerText;
-      const match = text.match(/Generated\s+on\s+(.+)/i);
-      if (match) {
-        curDoxyTime = match[1].trim();
-      } else {
-        console.warn(`Gen Pri Tree: Could not find “Generated on …” in "#nav-path li.footer" element`);
-      }
-    } catch (err) {
-      console.error(`Gen Pri Tree: Error waiting for footer "#nav-path li.footer" element:`, err);
-    }
-
     // read the stored arrays if current time is same as previous time
-    if (prvDoxyTime != null && prvDoxyTime === curDoxyTime) {
+    if (prvDoxyTime != null && prvDoxyTime === window.DOXY_PLUS_DATE_TIME) {
       const priTree = load(KEY__PRI_TREE);
       if (priTree != null && Array.isArray(priTree) && priTree.length > 0) {
         // assign the primary tree
-        _priTree = priTree;
+        _priTree.push(...priTree);
 
         // saving so that expiry time is updated
-        save(KEY__GEN_DATA, curDoxyTime);
+        save(KEY__GEN_DATA, window.DOXY_PLUS_DATE_TIME);
         save(KEY__PRI_TREE, _priTree);
 
         //console.log(`Gen Pri Tree: Loaded from Session Storage`);
@@ -849,7 +829,7 @@ File Names: doxy-plus.*
     }
 
     // get the default NAVTREE
-    const defTree = await genDefNavTree();
+    const defTree = await genDefTree();
     if (!Array.isArray(defTree) || defTree.length === 0) {
       console.warn('Gen Pri Tree: Default tree returned by "genDefTree" is either not an array or is empty');
       return;
@@ -1005,7 +985,7 @@ File Names: doxy-plus.*
 
     _priTree.push(['Ind C', null, null]);
 
-    save(KEY__GEN_DATA, curDoxyTime);
+    save(KEY__GEN_DATA, window.DOXY_PLUS_DATE_TIME);
     save(KEY__PRI_TREE, _priTree);
 
     //console.log(`Gen Pri Tree: Generated`);
@@ -1421,11 +1401,317 @@ File Names: doxy-plus.*
   // #region 🟩 BUILD TREE
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+  const BUILD_TREE_CONFIG = {
+    primary: {
+      data: _priTree,
+      key: KEY__PRI_NAV_EXPANDED_NODES,
+      prefix: 'P:',
+      mainSet: _priExpNodes,
+      defaultOpen: false,
+      onToggle: (id, isOpen) => isOpen ? _priExpNodes.add(id) : _priExpNodes.delete(id),
+      saveDebounced: debounce(() => save(KEY__PRI_NAV_EXPANDED_NODES, Array.from(_priExpNodes)), 500)
+    },
+    secondary: {
+      data: _secTree,
+      key: HTML_NAME,
+      prefix: 'S:',
+      mainSet: _secColNodes,
+      defaultOpen: true,
+      onToggle: (id, isOpen) => isOpen ? _secColNodes.delete(id) : _secColNodes.add(id),
+      saveDebounced: debounce(() => save(HTML_NAME, Array.from(_secColNodes)), 500)
+    }
+  };
+
+  function buildTree(kind = 'primary') {
+
+    // verifying
+    if (!BUILD_TREE_CONFIG[kind]) {
+      console.error(`Build Tree: "${kind}" is not a valid parameter. Returning.`);
+      return document.createDocumentFragment();
+    }
+
+    const cfg = BUILD_TREE_CONFIG[kind];
+    const tree = cfg.data;
+    if (!Array.isArray(tree) || tree.length === 0) {
+      console.log(`Build Tree: "${kind}" data empty or invalid. Returning.`);
+      return document.createDocumentFragment();
+    }
+
+    // clear out any prior state
+    cfg.mainSet.clear();
+
+    // load previous state in a separate set
+    let prvAry = [];
+    const rawAry = load(cfg.key, []);
+    if (Array.isArray(rawAry)) prvAry = rawAry;
+    else console.warn(`Expected array for "${cfg.key}", got:`, rawAry);
+    const prvSet = new Set(prvAry);
+
+    const rootUl = document.createElement('ul');
+    rootUl.classList.add('dp-tree-list');
+    rootUl.setAttribute('role', 'tree');
+    rootUl.setAttribute('tabindex', '0');  // for keyboard nav
+
+    // stack for iterative build
+    const stack = [{ branch: tree, parentUl: rootUl, level: [] }];
+
+    while (stack.length) {
+      const { branch, parentUl, level } = stack.pop();
+      const fragment = document.createDocumentFragment();
+
+      branch.forEach(([name, path, kids], idx) => {
+
+        const li = document.createElement('li');
+        li.classList.add('dp-tree-item');
+        li.setAttribute('role', 'treeitem');
+
+        // compute ID
+        const thisLevel = [...level, idx];
+        const fileBase = (typeof path === 'string' && path.length > 0) ? (kind === 'primary' ? path.split('/').pop().replace(/\..*$/, '') : path) : null;
+        const id = `${cfg.prefix}${thisLevel.join('.')}.${fileBase}`;
+        li.setAttribute('dp-item-id', id);
+
+        // line container
+        const line = document.createElement('div');
+        line.classList.add('dp-tree-line');
+
+        // toggle button
+        const node = document.createElement('button');
+        node.classList.add('dp-tree-node');
+        node.setAttribute('aria-expanded', 'false');
+        node.setAttribute('type', 'button');
+
+        // link
+        const link = document.createElement('a');
+        link.classList.add('dp-tree-link');
+        const href = (typeof path === 'string' && path.length > 0) ? (kind === 'primary' ? DOC_ROOT + path : path) : null;
+
+        if (href) {
+          link.href = href;
+        } else {
+          link.classList.add('dp-tree-link--disabled');
+          link.removeAttribute('href');
+          link.setAttribute('aria-disabled', 'true');
+          link.setAttribute('tabindex', '-1');
+        }
+        link.textContent = name;
+
+        const isOpen = prvSet.has(id) ? !cfg.defaultOpen : cfg.defaultOpen;
+        node.textContent = isOpen ? '○' : '●';
+
+        line.append(node, link);
+        li.appendChild(line);
+
+        // children?
+        if (Array.isArray(kids) && kids.length) {
+          li.classList.add('dp-has-children');
+          // decide open state
+          node.setAttribute('aria-expanded', String(isOpen));
+          if (isOpen) li.classList.add('dp-node-open');
+          cfg.onToggle(id, isOpen);
+
+          // child UL
+          const childUl = document.createElement('ul');
+          childUl.classList.add('dp-tree-list');
+          childUl.setAttribute('role', 'group');
+          li.appendChild(childUl);
+
+          // push children for processing
+          stack.push({ branch: kids, parentUl: childUl, level: thisLevel });
+        } else {
+          node.style.visibility = 'hidden';
+          //node.textContent = '';
+        }
+
+        fragment.appendChild(li);
+      });
+
+      parentUl.appendChild(fragment);
+    }
+
+    // save initial state
+    cfg.saveDebounced();
+    return rootUl;
+  }
+
+  function setCurrentTreeItem(container, kind = 'primary') {
+
+    // verifying
+    if (!container || !BUILD_TREE_CONFIG[kind]) {
+      console.error(`Set Current Tree Item: Invalid parameter. Returning.`);
+      return;
+    }
+
+    const cfg = BUILD_TREE_CONFIG[kind];
+
+    // clear previous
+    const prev = container.querySelector('.dp-current');
+    if (prev) prev.classList.remove('dp-current');
+
+    // find new target
+    const target = kind === 'primary' ? window.location.href.split('#')[0] : window.location.hash;
+    if (!target) return;
+
+    for (const link of container.querySelectorAll('.dp-tree-link[href]')) {
+      if (link.getAttribute('href') === target) {
+        const item = link.closest('.dp-tree-item');
+        item.classList.add('dp-current');
+
+        // expand ancestors
+        let parent = item.parentElement.closest('.dp-tree-item');
+        while (parent) {
+          parent.classList.add('dp-node-open');
+          const btn = parent.querySelector(':scope > .dp-tree-line > .dp-tree-node');
+          if (btn) {
+            btn.textContent = '○';
+            btn.setAttribute('aria-expanded', 'true');
+          }
+          const id = parent.getAttribute('dp-item-id');
+          cfg.onToggle(id, true);
+          parent = parent.parentElement.closest('.dp-tree-item');
+        }
+
+        item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        break;
+      }
+    }
+
+    cfg.saveDebounced();
+  }
+
+  async function buildTree_init() {
+
+    // Primary
+    const priContainer = await waitFor('#dp-pri-nav');
+    priContainer.innerHTML = '';
+    const priTreeRoot = buildTree('primary');
+    priContainer.appendChild(priTreeRoot);
+    setCurrentTreeItem(priContainer, 'primary');
+
+    //priTreeRoot.setAttribute('tabindex', '0');
+    //priTreeRoot.focus();
+
+    // Secondary (if any)
+    let secContainer = null;
+    let secTreeRoot = null;
+    if (BUILD_TREE_CONFIG.secondary.data.length > 0) {
+      secContainer = await waitFor('#dp-sec-nav');
+      secContainer.innerHTML = '';
+      secTreeRoot = buildTree('secondary');
+      secContainer.appendChild(secTreeRoot);
+      setCurrentTreeItem(secContainer, 'secondary');
+    }
+
+    // --- Event Delegation for Clicks & Keyboard ----------------------------
+
+    function clickHandler(e) {
+      // toggle nodes
+      if (e.target.matches('.dp-tree-node')) {
+        console.log('--- Target Matched');
+        const li = e.target.closest('.dp-tree-item');
+        const id = li.getAttribute('dp-item-id');
+        const isOpen = li.classList.toggle('dp-node-open');
+        e.target.textContent = isOpen ? '○' : '●';
+        e.target.setAttribute('aria-expanded', String(isOpen));
+        const cfg = id.startsWith('P:') ? BUILD_TREE_CONFIG.primary : BUILD_TREE_CONFIG.secondary;
+        cfg.onToggle(id, isOpen);
+        e.target.focus();
+        cfg.saveDebounced();
+      }
+      else {
+        console.log('-- No Target Match');
+      }
+
+      // mark visited
+      if (e.target.matches('.dp-tree-link[href]')) {
+        e.target.closest('.dp-tree-item').classList.add('dp-visited');
+      }
+    }
+
+    function keydownHandler(e) {
+      const focusables = Array.from(e.currentTarget.querySelectorAll('.dp-tree-link[href]:not([aria-disabled])'));
+      console.log('----', focusables.length);
+      const idx = focusables.indexOf(document.activeElement);
+      if (idx === -1) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          focusables[(idx + 1) % focusables.length].focus();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          focusables[(idx - 1 + focusables.length) % focusables.length].focus();
+          break;
+        case 'ArrowRight': {
+          const li = document.activeElement.closest('.dp-tree-item');
+          const btn = li.querySelector(':scope > .dp-tree-line > .dp-tree-node');
+          if (btn && li.classList.contains('dp-has-children') && !li.classList.contains('dp-node-open')) {
+            btn.click();
+          }
+          break;
+        }
+        case 'ArrowLeft': {
+          const li = document.activeElement.closest('.dp-tree-item');
+          if (li.classList.contains('dp-node-open')) {
+            li.querySelector(':scope > .dp-tree-line > .dp-tree-node').click();
+          } else {
+            const parentLi = li.parentElement.closest('.dp-tree-item');
+            if (parentLi) parentLi.querySelector('.dp-tree-link').focus();
+          }
+          break;
+        }
+        case 'Home':
+          e.preventDefault();
+          focusables[0].focus();
+          break;
+        case 'End':
+          e.preventDefault();
+          focusables[focusables.length - 1].focus();
+          break;
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          document.activeElement.click();
+          break;
+      }
+    }
+
+    priTreeRoot.addEventListener('click', clickHandler);
+    priTreeRoot.addEventListener('keydown', keydownHandler);
+
+    if (secTreeRoot) {
+      secTreeRoot.addEventListener('click', clickHandler);
+      secTreeRoot.addEventListener('keydown', keydownHandler);
+      //secTreeRoot.setAttribute('tabindex', '0');
+      //secTreeRoot.focus();
+    }
+  }
+
+  // Reflect hash changes in secondary tree
+  window.addEventListener('hashchange', () => {
+    save(KEY__PREV_URL, window.location.href);
+    if (BUILD_TREE_CONFIG.secondary.data.length > 0) {
+      urlHashChanged();
+    }
+  });
+
+  async function urlHashChanged() {
+    const secContainer = await waitFor('#dp-sec-nav');
+    setCurrentTreeItem(secContainer, 'secondary');
+  }
+
+  document.addEventListener('mousedown', e => {
+    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    if (hit.closest('#dp-pri-nav')) console.log('PRIMARY');
+    else if (hit.closest('#dp-sec-nav')) console.log('SECONDARY');
+    else console.log('OUTSIDE');
+  }, true);
+
+  /*
   function buildTree(primary = true) {
 
-    const [tree, defExp, keyName, setExpCol] = primary
-      ? [_priTree, false, KEY__PRI_NAV_EXPANDED_NODES, _priExpNodes]
-      : [_secTree, true, HTML_NAME, _secColNodes];
+    const [tree, keyName] = primary ? [_priTree, KEY__PRI_NAV_EXPANDED_NODES] : [_secTree, HTML_NAME];
 
     if (!Array.isArray(tree) || tree.length === 0) {
       const treeName = primary ? '_priTree' : '_secTree';
@@ -1433,11 +1719,185 @@ File Names: doxy-plus.*
       return;
     }
 
+    let aryExpCol = [];
     const doSave = typeof keyName === 'string' && keyName.length > 0;
     if (doSave) {
+      const rawExpCol = load(keyName, []);
+      if (Array.isArray(rawExpCol)) aryExpCol = rawExpCol;
+      else console.warn(`Build Tree: expected an array for "${keyName}" key, got:`, rawExpCol);
+    }
+    const setExpCol = new Set(aryExpCol);
+    let mainSet = primary ? _priExpNodes : _secColNodes;
+    mainSet.clear();
 
+    const prefix = primary ? 'P:' : 'S:';
+
+    function builder(branch, level = []) {
+
+      const list = document.createElement('ul');
+      list.classList.add('dp-tree-list');
+
+      branch.forEach(([name, path, kids], idx) => {
+
+        const href = (typeof path === 'string' && path.length > 0) ? (primary ? DOC_ROOT + path : path) : null;
+
+        const item = document.createElement('li');
+        item.classList.add('dp-tree-item');
+        const line = document.createElement('div');
+        line.classList.add('dp-tree-line');
+        const node = document.createElement('button');
+        node.classList.add('dp-tree-node');
+        const link = document.createElement('a');
+        link.classList.add('dp-tree-link');
+
+        line.append(node, link);
+        item.appendChild(line);
+
+        if (href) {
+          link.href = href;
+        } else {
+          link.removeAttribute('href');
+          link.setAttribute('aria-disabled', 'true');
+          link.style.cursor = 'default';
+          link.setAttribute('tabindex', '-1');
+        }
+        link.textContent = name;
+
+        link.addEventListener('click', () => item.classList.add('dp-visited'));
+
+        // build a stable ID: either the file base name, or the path of indices
+        const thisLevel = [...level, idx];
+        const fileBase = href ? (primary ? path.split('/').pop().replace(/\..*$/, '') : path) : null;
+        const id = `${prefix}${thisLevel.join('.')}.${fileBase}`;
+        item.setAttribute('dp-item-id', id);
+
+        if (Array.isArray(kids) && kids.length > 0) {
+          item.classList.add('dp-has-children');
+
+          const isOpen = primary ? setExpCol.has(id) : !setExpCol.has(id);
+          node.textContent = isOpen ? '○' : '●';
+          if (isOpen) {
+            if (primary) mainSet.add(id);
+            item.classList.add('dp-node-open');
+          }
+          else {
+            if (!primary) mainSet.add(id);
+          }
+
+          node.addEventListener('click', e => {
+            e.stopPropagation();
+            const nowOpen = item.classList.toggle('dp-node-open');
+            node.textContent = nowOpen ? '○' : '●';
+            if (primary) nowOpen ? mainSet.add(id) : mainSet.delete(id);
+            else nowOpen ? mainSet.delete(id) : mainSet.add(id);
+            if (doSave) save(keyName, Array.from(mainSet));
+          });
+
+          item.appendChild(builder(kids, thisLevel));
+        }
+        else {
+          node.style.visibility = 'hidden';
+        }
+
+        list.appendChild(item);
+      });
+
+      return list;
+    }
+
+    const built = builder(tree);
+    if (doSave) save(keyName, Array.from(mainSet));
+    return built;
+  }
+
+  function setCurrentTreeItem(container, primary = false){
+
+    const prev = container.querySelector('.dp-current');
+    if (prev) {
+      const prevLink = prev.querySelector('.dp-tree-link[href]');
+      if (prevLink) console.log('Previous href:', prevLink.getAttribute('href'));
+      console.log('PREV ID:', prev.getAttribute('dp-item-id'));
+      prev.classList.remove('dp-current');
+    }
+
+    const target = primary ? window.location.href.split('#')[0] : window.location.hash;
+    if (!target) return;
+
+    const [mainSet, keyName] = primary ? [_priExpNodes, KEY__PRI_NAV_EXPANDED_NODES] : [_secColNodes, HTML_NAME];
+    const doSave = typeof keyName === 'string' && keyName.length > 0;
+
+    const links = container.querySelectorAll('.dp-tree-link[href]');
+    for (const link of links) {
+      if (link.getAttribute('href') === target) {
+
+        // mark the new current item
+        const item = link.closest('.dp-tree-item');
+        item.classList.add('dp-current');
+
+        // expand all ancestor nodes
+        let parentItem = item.parentElement.closest('.dp-tree-item');
+        while (parentItem) {
+          parentItem.classList.add('dp-node-open');
+          const btn = parentItem.querySelector(':scope > .dp-tree-line > .dp-tree-node');
+          if (btn) btn.textContent = '○';
+          if(doSave){
+            const id = parentItem.getAttribute('dp-item-id');
+            if(primary) mainSet.add(id);
+            else mainSet.delete(id);
+          }
+          parentItem = parentItem.parentElement.closest('.dp-tree-item');
+        }
+
+        // 5. scroll it into view
+        item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        break;
+      }
+    }
+
+    if(doSave) save(keyName, Array.from(mainSet));
+  }
+
+  async function buildTree_init() {
+    const [pri, sec] = await Promise.all([waitFor('#dp-pri-nav'), waitFor('#dp-sec-nav')]);
+    pri.innerHTML = '';
+    pri.appendChild(buildTree(true));
+    setCurrentTreeItem(pri, true);
+    if (_secTree.length > 0) {
+      sec.innerHTML = '';
+      sec.appendChild(buildTree(false));
+      setCurrentTreeItem(sec, false);
     }
   }
+
+  window.addEventListener('hashchange', function (event) {
+    // This function is called whenever the anchor part (i.e. tge hash part of ...html#...) in the URL changess
+    if (_secTree.length > 0) {
+      urlHashChanged();
+    }
+  }, false);
+
+  async function urlHashChanged() {
+    const sec = await waitFor('#dp-sec-nav');
+    setCurrentTreeItem(sec, false);
+  }
+
+  function dispId(tree, primary = true) {
+    function builder(branch, level = []) {
+      branch.forEach(([name, path, kids], idx) => {
+        const href = (typeof path === 'string' && path.length > 0) ? (primary ? DOC_ROOT + path : path) : null;
+        const thisLevel = [...level, idx];
+        const fileBase = href ? (primary ? path.split('/').pop().replace(/\..*$/, '') : path) : null;
+        const prefix = primary ? 'P:' : 'S:';
+        const id = `${prefix}${thisLevel.join('.')}.${fileBase}`;
+        console.log('ID:', path, href, fileBase, id);
+        if (Array.isArray(kids) && kids.length > 0) {
+          builder(kids, thisLevel);
+        }
+      });
+    }
+    builder(tree);
+  }
+  */
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 BUILD TREE
@@ -1445,64 +1905,29 @@ File Names: doxy-plus.*
   // #region 🟩 URL ANCHOR HASH LISTNER
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  window.addEventListener('hashchange', function (event) {
-    // This function is called whenever the anchor part (i.e. tge hash part of ...html#...) in the URL changess
-    if (_secTree.length > 0) {
-      //setCurrentTreeItem('#dp-sec-nav .dp-tree-link', window.location.hash);
-      urlHashChanged();
-    }
-  }, false);
-
-  async function urlHashChanged() {
-    //const sec = await waitFor('#dp-sec-nav');
-    //setCurrentTreeItem(sec, true);
-  }
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 URL ANCHOR HASH LISTNER
 
   // #region 🟩 DOCUMENT DOM LOADING CALLS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-
-  const mainSet = new Set([1, 2]);
-  const mainAry = [1, 2];
-  console.log('BEFORE:', mainSet); // Set {1, 2}
-  console.log('BEFORE:', mainAry); // [1, 2]
-
-  function someFunc() {
-    let tempSet = mainSet;
-    let tempAry = mainAry;
-
-    tempSet.add(3);
-    tempAry.push(3);
-  }
-
-  someFunc();
-
-  console.log('AFTER:', mainSet); // Set {1, 2, 3}
-  console.log('AFTER:', mainAry); // [1, 2, 3]
-
-  async function checkTimeout() {
-    const start = performance.now();
-    while (true) {
-      const rem = performance.now() - start;
-      if (rem > TIMEOUT) {
-        console.log(`END: ${rem}`);
-        break;
-      }
-      else {
-        console.log(`RUN: ${rem}`);
-        await new Promise(requestAnimationFrame);
-      }
-    }
-  }
-
   async function docOnReady() {
     searchPlaceholderTweak();
     sideNavTweak();
     sidebarToggleButton();
     dualNavResizer();
+    await genPriTree();
+    await genSecTree();
+    setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
+    adjustXandH_init();
+    buildTree_init();
+
+    /*
+    dispId(_priTree, true);
+    if (_secTree.length > 0) {
+      dispId(_secTree, false);
+    }
+      */
   }
 
   if (document.readyState === 'loading') {
