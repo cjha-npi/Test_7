@@ -125,13 +125,37 @@ File Names: doxy-plus.*
 
   const STORAGE = store.namespace(PROJ_NAMESPACE);
 
-  
+
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 CONSTANTS
 
   // #region 🟩 CHECK RELOAD STATUS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  async function checkThisUrl(url) {
+    if (!url.startsWith(DOC_ROOT)) {
+      console.warn(`URL: ${url} does not start with DOC_ROOT: ${DOC_ROOT}`);
+      return null;
+    }
+
+    const isRemote = url.protocol === 'http:' || url.protocol === 'https:';
+    console.log(`${url} is remote: ${isRemote}`);
+
+    // 4) HEAD-check only for remote pages
+    if (isRemote) {
+      try {
+        const headResp = await fetch(url.href, { method: 'HEAD' });
+        if (!headResp.ok) {
+          console.error('HEAD request failed:', headResp.status);
+          return null;
+        }
+      } catch (e) {
+        console.error('Network/HEAD error:', e);
+        return null;
+      }
+    }
+  }
 
   const isReload = (sessionStorage.getItem('is_reload') === 'true')
   sessionStorage.setItem('is_reload', 'true');
@@ -142,7 +166,10 @@ File Names: doxy-plus.*
   console.log('Prev URL:', prevHref);
   console.log('Current URL:', window.location.href);
   console.log('DOC_ROOT', DOC_ROOT);
-  if(prevHref) console.log('Prev URL Starts Width DOC_ROOT:', prevHref.startsWith(DOC_ROOT));
+  if (prevHref){
+    console.log('Prev URL Starts Width DOC_ROOT:', prevHref.startsWith(DOC_ROOT));
+    checkThisUrl(prevHref);
+  }
   console.log('Current URL Starts With DOC_ROOT:', window.location.href.startsWith(DOC_ROOT));
   console.groupEnd();
 
