@@ -140,7 +140,7 @@ File Names: doxy-plus.*
     }
 
     const isRemote = url.protocol === 'http:' || url.protocol === 'https:';
-    console.log(`${url} is remote: ${isRemote}`);
+    console.log(`${url} with protocol ${url.protocol} is remote: ${isRemote}`);
 
     // 4) HEAD-check only for remote pages
     if (isRemote) {
