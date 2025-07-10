@@ -14,6 +14,7 @@ File Names: doxy-plus.*
   console.log(performance.getEntriesByType('navigation')[0].type);
   const { pathname } = new URL(window.location.href);
   console.log(pathname);
+  console.log(document.referrer);
   console.groupEnd();
 
   // #region 🟩 CONSTANTS
@@ -2040,7 +2041,7 @@ File Names: doxy-plus.*
     sidebarToggleButton();
     dualNavResizer();
     await genPriTree();
-    checkReload();
+    //checkReload();
     await genSecTree();
     setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
     adjustXandH_init();
