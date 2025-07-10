@@ -252,11 +252,18 @@ body {
   top: 0;
   bottom: 0;
   width: 5px;
-  background: none;
+  background: rgba(0, 255, 0, 0.1);
   cursor: ew-resize;
   z-index: 10000 !important;
 }
 
+@media (pointer: coarse) {
+  #dp-pri-nav-resizer,
+  #dp-sec-nav-resizer {
+    width: 20px;
+    margin-left: -10px;
+  }
+}
 
 
 

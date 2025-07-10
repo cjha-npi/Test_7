@@ -125,7 +125,7 @@ File Names: doxy-plus.*
 
   const STORAGE = store.namespace(PROJ_NAMESPACE);
 
-  
+
 
   console.group('---Navigated By:');
   console.log(performance.getEntriesByType('navigation')[0].type);
@@ -1149,7 +1149,7 @@ File Names: doxy-plus.*
 
   function checkReload() {
 
-    // Guard #1: If not a fresh then return
+    // Guard #1: only on a truly “fresh” tab
     const isFresh = (sessionStorage.getItem('is_fresh') !== 'true');
     sessionStorage.setItem('is_fresh', 'true');
     if (!isFresh) {
@@ -1157,35 +1157,39 @@ File Names: doxy-plus.*
       return;
     }
 
-    // Guard #2: If _priTree is empty then return
-    if (!_priTree.length) {
+    // Guard #2: we must have a populated tree
+    if (!Array.isArray(_priTree) || !_priTree.length) {
       console.log('Check Reload: _PriTree EMPTY');
       return;
     }
 
-    // Guard #3: If this was not a navigated page (new or by link) then return
-    const nav = performance.getEntriesByType('navigation')[0] || {};
-    if (nav.type !== 'navigate') {
-      console.log(`Check Reload: nav.type !== navigate. It is ${nav.type}`);
-      return;
+    // Guard #3: skip reload/back/forward
+    let navType = 'navigate';
+    const [navEntry] = performance.getEntriesByType('navigation');
+    if (navEntry) {
+      navType = navEntry.type;
+    } else if (performance.navigation) {
+      // fallback for older browsers (deprecated API)
+      navType = performance.navigation.type === 1 ? 'reload' : 'navigate';
     }
+    if (navType !== 'navigate') return;
 
-    // Guard #4: If there is no stored url or if it does not start with DOC_ROOT then return
+    // Guard #4: storedUrl must exist and start with DOC_ROOT
     const storedUrl = load(KEY__PREV_URL);
     if (!storedUrl || !storedUrl.startsWith(DOC_ROOT)) {
       console.log(`Check Reload: Store URL ${storedUrl}`);
       return;
     }
 
-    // Guard #5: If not on the landing page then return
+    // Guard #5: only run on your actual landing page
     const { pathname } = new URL(window.location.href);
-    const isLanding = pathname === '/' || pathname.endsWith('/index.html');
+    const isLanding = pathname.endsWith('/') || pathname.endsWith('/index.html');
     if (!isLanding) {
       console.log(`Check Reload: Landing Page ${pathname}`);
       return;
     }
 
-    // Restore stored url if possible
+    // Finally: walk the tree and redirect
     const stack = [..._priTree];
     while (stack.length) {
       const [, href, kids] = stack.pop();
@@ -1810,21 +1814,67 @@ File Names: doxy-plus.*
   async function keydownHandler(e) {
     if (!_secNavFocus || _secTree.length === 0) return;
     const secContainer = await waitFor('#dp-sec-nav');
-    const focusables = Array.from(secContainer.querySelectorAll('.dp-tree-link[href]:not([aria-disabled])'));
-    const idx = focusables.indexOf(secContainer.querySelector('.dp-current > .dp-tree-line > .dp-tree-link'));
+
+    function getVisibleTreeLinks(container) {
+      const result = [];
+
+      function walk(ul) {
+        for (const li of ul.querySelectorAll(':scope > li.dp-tree-item')) {
+          // grab the immediate link, if it exists
+          const link = li.querySelector(':scope > .dp-tree-line > .dp-tree-link[href]:not([aria-disabled])');
+          if (link) {
+            result.push(li);
+          }
+          // recurse only into open branches
+          if (li.classList.contains('dp-has-children') && li.classList.contains('dp-node-open')) {
+            const childUl = li.querySelector(':scope > ul.dp-tree-list');
+            if (childUl) walk(childUl);
+          }
+        }
+      }
+
+      // find all top-level tree-lists under the container
+      for (const topUl of container.querySelectorAll(':scope > ul.dp-tree-list')) {
+        walk(topUl);
+      }
+
+      return result;
+    }
+
+    const focusables = getVisibleTreeLinks(secContainer);
+
+    //const focusables = Array.from(secContainer.querySelectorAll('.dp-tree-link[href]:not([aria-disabled])'));
+    const idx = focusables.indexOf(secContainer.querySelector('.dp-current'));
     console.log('----', idx, focusables.length);
     if (idx === -1) return;
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        focusables[(idx + 1) % focusables.length].click();
+        const link = focusables[(idx + 1) % focusables.length].querySelector('.dp-tree-line > .dp-tree-link');
+        //console.log(link.href, link.getAttribute('href'));
+        window.location.href = link.href;
         break;
       case 'ArrowUp':
         e.preventDefault();
-        focusables[(idx - 1 + focusables.length) % focusables.length].click();
+        focusables[(idx - 1 + focusables.length) % focusables.length].querySelector('.dp-tree-line > .dp-tree-link').click();
         break;
       case 'ArrowRight': {
+        e.preventDefault();
+        const hasChildren = focusables[idx].classList.contains('dp-has-children');
+        const isOpen = focusables[idx].classList.contains('dp-node-open');
+        const parLi = focusables[idx].parentElement.parentElement;
+        const node = focusables[idx].querySelector(':scope > .dp-tree-line > .dp-tree-node');
+        if (hasChildren && node && !isOpen) {
+          focusables[idx].classList.add('dp-node-open');
+          node.textContent = '○';
+          node.setAttribute('aria-expanded', 'true');
+          console.log('Right Arrow: GOOD');
+        }
+        else{
+          console.log('Right Arrow: BAD');
+        }
+        break;
         const li = focusables[idx].closest('.dp-tree-item');
         const btn = li.querySelector(':scope > .dp-tree-line > .dp-tree-node');
         if (btn && li.classList.contains('dp-has-children') && !li.classList.contains('dp-node-open')) {
@@ -1833,6 +1883,39 @@ File Names: doxy-plus.*
         break;
       }
       case 'ArrowLeft': {
+        e.preventDefault();
+        const hasChildren = focusables[idx].classList.contains('dp-has-children');
+        const isOpen = focusables[idx].classList.contains('dp-node-open');
+        const parLi = focusables[idx].parentElement.parentElement;
+        const node = focusables[idx].querySelector(':scope > .dp-tree-line > .dp-tree-node');
+        if (hasChildren && node && isOpen) {
+          focusables[idx].classList.remove('dp-node-open');
+          node.textContent = '●';
+          node.setAttribute('aria-expanded', 'false');
+          console.log('Left Arrow: Current');
+        }
+        else if (parLi) {
+          const parHasChildren = parLi.classList.contains('dp-has-children');
+          const parIsOpen = parLi.classList.contains('dp-node-open');
+          const parNode = parLi.querySelector(':scope > .dp-tree-line > .dp-tree-node');
+          if (parHasChildren && parNode && parIsOpen) {
+            parLi.classList.remove('dp-node-open');
+            parNode.textContent = '●';
+            parNode.setAttribute('aria-expanded', 'false');
+            console.log('Left Arrow: Parent');
+            const link = parLi.querySelector(':scope > .dp-tree-line > .dp-tree-link');
+            if(typeof link.href === 'string' && link.href.length > 0){
+              window.location.href = link.href;
+            }
+          }
+          else{
+            console.log('Left Arrow: Parent BAD');
+          }
+        }
+        else{
+          console.log('Left Arrow: Current BAD');
+        }
+        break;
         const li = focusables[idx].closest('.dp-tree-item');
         if (li.classList.contains('dp-node-open')) {
           li.querySelector(':scope > .dp-tree-line > .dp-tree-node').click();
