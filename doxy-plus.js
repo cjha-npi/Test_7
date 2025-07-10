@@ -10,13 +10,6 @@ File Names: doxy-plus.*
 ; (function ($) {
   'use strict';
 
-  console.group('---Navigated By:');
-  console.log(performance.getEntriesByType('navigation')[0].type);
-  const { pathname } = new URL(window.location.href);
-  console.log(pathname);
-  console.log(document.referrer);
-  console.groupEnd();
-
   // #region 🟩 CONSTANTS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -131,6 +124,17 @@ File Names: doxy-plus.*
   })();
 
   const STORAGE = store.namespace(PROJ_NAMESPACE);
+
+  
+
+  console.group('---Navigated By:');
+  console.log(performance.getEntriesByType('navigation')[0].type);
+  const { pathname } = new URL(window.location.href);
+  console.log(window.location.href);
+  console.log(pathname);
+  console.log(document.referrer);
+  console.log(DOC_ROOT);
+  console.groupEnd();
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 CONSTANTS
@@ -1144,36 +1148,58 @@ File Names: doxy-plus.*
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   function checkReload() {
-    // Guard #1: exit if this load was a reload
-    const nav = performance.getEntriesByType('navigation')[0] || {};
-    if (nav.type !== 'navigate') return;
 
-    // Guard #2: only on the landing page
+    // Guard #1: If not a fresh then return
+    const isFresh = (sessionStorage.getItem('is_fresh') !== 'true');
+    sessionStorage.setItem('is_fresh', 'true');
+    if (!isFresh) {
+      console.log('Check Reload: Not Fresh');
+      return;
+    }
+
+    // Guard #2: If _priTree is empty then return
+    if (!_priTree.length) {
+      console.log('Check Reload: _PriTree EMPTY');
+      return;
+    }
+
+    // Guard #3: If this was not a navigated page (new or by link) then return
+    const nav = performance.getEntriesByType('navigation')[0] || {};
+    if (nav.type !== 'navigate') {
+      console.log(`Check Reload: nav.type !== navigate. It is ${nav.type}`);
+      return;
+    }
+
+    // Guard #4: If there is no stored url or if it does not start with DOC_ROOT then return
+    const storedUrl = load(KEY__PREV_URL);
+    if (!storedUrl || !storedUrl.startsWith(DOC_ROOT)) {
+      console.log(`Check Reload: Store URL ${storedUrl}`);
+      return;
+    }
+
+    // Guard #5: If not on the landing page then return
     const { pathname } = new URL(window.location.href);
     const isLanding = pathname === '/' || pathname.endsWith('/index.html');
-    if (!isLanding) return;
+    if (!isLanding) {
+      console.log(`Check Reload: Landing Page ${pathname}`);
+      return;
+    }
 
-    // Guard #3: ensure there is something in _priTree
-    if (!_priTree.length) return;
-
-    // Attempt to restore
-    const prevUrl = load(KEY__PREV_URL);
-    if (prevUrl && prevUrl.startsWith(DOC_ROOT)) {
-      const stack = [..._priTree];
-      while (stack.length) {
-        const [, href, kids] = stack.pop();
-        if (typeof href === 'string' && IS_HTML_END.test(href) && prevUrl.includes(href)) {
-          window.location.assign(prevUrl);
-          return;  // stop after first match
-        }
-        if (Array.isArray(kids) && kids.length) {
-          stack.push(...kids);
-        }
+    // Restore stored url if possible
+    const stack = [..._priTree];
+    while (stack.length) {
+      const [, href, kids] = stack.pop();
+      if (typeof href === 'string' && IS_HTML_END.test(href) && storedUrl.includes(href)) {
+        window.location.assign(storedUrl);
+        return;  // stop after first match
+      }
+      if (Array.isArray(kids) && kids.length) {
+        stack.push(...kids);
       }
     }
   }
 
-  // Always keep our “previous URL” up to date
+  // Keep our “previous URL” up to date
   window.addEventListener('beforeunload', () => {
     save(KEY__PREV_URL, window.location.href);
   });
@@ -1769,7 +1795,7 @@ File Names: doxy-plus.*
     else if (hit.closest('#dp-sec-nav')) console.log('SECONDARY');
     else console.log('OUTSIDE');
 
-    if(hit.closest('#dp-sec-nav')) _secNavFocus = true;
+    if (hit.closest('#dp-sec-nav')) _secNavFocus = true;
     else _secNavFocus = false;
   }, true);
 
@@ -1782,7 +1808,7 @@ File Names: doxy-plus.*
   });
 
   async function keydownHandler(e) {
-    if(!_secNavFocus || _secTree.length === 0) return;
+    if (!_secNavFocus || _secTree.length === 0) return;
     const secContainer = await waitFor('#dp-sec-nav');
     const focusables = Array.from(secContainer.querySelectorAll('.dp-tree-link[href]:not([aria-disabled])'));
     const idx = focusables.indexOf(secContainer.querySelector('.dp-current > .dp-tree-line > .dp-tree-link'));
@@ -2041,7 +2067,7 @@ File Names: doxy-plus.*
     sidebarToggleButton();
     dualNavResizer();
     await genPriTree();
-    //checkReload();
+    checkReload();
     await genSecTree();
     setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
     adjustXandH_init();
