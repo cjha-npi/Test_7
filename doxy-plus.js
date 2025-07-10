@@ -10,6 +10,11 @@ File Names: doxy-plus.*
 ; (function ($) {
   'use strict';
 
+  console.group('---Navigated By:');
+  console.log(performance.getEntriesByType('navigation')[0].type);
+  const { pathname } = new URL(window.location.href);
+  console.log(pathname);
+  console.groupEnd();
 
   // #region 🟩 CONSTANTS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -21,6 +26,7 @@ File Names: doxy-plus.*
   const KEY__SEC_WIDTH = 'sec_width'; // key by which width of the dual nav -> secondary pane is stored
   const KEY__GEN_DATA = 'gen_data'; // key by which the doxygen generation time is stored
   const KEY__PRI_TREE = 'pri_tree'; // key by which primary tree for dual nav is stored
+  const KEY__PRI_TREE_INDENTED = 'pri_tree_indented';
   const KEY__PRI_NAV_EXPANDED_NODES = 'pri_nav_expanded_nodes'; // key by which primary nav's already expanded nodes are stored
 
 
@@ -125,86 +131,8 @@ File Names: doxy-plus.*
 
   const STORAGE = store.namespace(PROJ_NAMESPACE);
 
-
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 CONSTANTS
-
-  // #region 🟩 CHECK RELOAD STATUS
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  async function checkThisUrl(urlStr) {
-    if (!urlStr.startsWith(DOC_ROOT)) {
-      console.warn(`URL: ${urlStr} does not start with DOC_ROOT: ${DOC_ROOT}`);
-      return null;
-    }
-
-    let url;
-    // 1) Parse & syntax-check
-    try {
-      url = new URL(urlStr, window.location.href);
-    } catch (e) {
-      console.error('Invalid URL:', e);
-      return null;
-    }
-
-    console.log(`${urlStr} -> ${url}`);
-
-    function loadDocumentInIframe(srcUrl, timeout = 5000) {
-      return new Promise((resolve, reject) => {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = srcUrl;
-
-        let timer = setTimeout(() => {
-          cleanup();
-          reject(new Error('Iframe load timeout'));
-        }, timeout);
-
-        function cleanup() {
-          clearTimeout(timer);
-          iframe.removeEventListener('load', onLoad);
-          document.body.removeChild(iframe);
-        }
-
-        function onLoad() {
-          try {
-            const doc = iframe.contentDocument;
-            if (!doc) throw new Error('No contentDocument');
-            cleanup();
-            resolve(doc);
-          } catch (e) {
-            cleanup();
-            reject(e);
-          }
-        }
-
-        iframe.addEventListener('load', onLoad);
-        document.body.appendChild(iframe);
-      });
-    }
-
-
-  }
-
-  const isReload = (sessionStorage.getItem('is_reload') === 'true')
-  sessionStorage.setItem('is_reload', 'true');
-  const prevHref = load(KEY__PREV_URL);
-  save(KEY__PREV_URL, window.location.href);
-  console.group('--- URL ---');
-  console.log('Is Reload:', isReload);
-  console.log('Prev URL:', prevHref);
-  console.log('Current URL:', window.location.href);
-  console.log('DOC_ROOT', DOC_ROOT);
-  if (prevHref) {
-    console.log('Prev URL Starts Width DOC_ROOT:', prevHref.startsWith(DOC_ROOT));
-    checkThisUrl(prevHref);
-  }
-  console.log('Current URL Starts With DOC_ROOT:', window.location.href.startsWith(DOC_ROOT));
-  console.groupEnd();
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // #endregion 🟥 CHECK RELOAD STATUS
 
   // #region 🟩 PURGE EXPIRED STORED DATA
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -253,6 +181,7 @@ File Names: doxy-plus.*
 
   // booleans
   let _dualNav = load(KEY__DUAL_NAV, true);
+  let _priTreeIndented = false;
 
   // arrays and sets
   const _priTree = [];
@@ -381,6 +310,24 @@ File Names: doxy-plus.*
         console.log(`${name} → ${href} → ${kids}`);
       }
     });
+  }
+
+  function isTreeIndented(tree) {
+    if (!Array.isArray(tree) || tree.length === 0) {
+      return true;
+    }
+    for (let ii = 0; ii < tree.length; ++ii) {
+      const kids = tree[ii][2];
+      if (Array.isArray(kids) && kids.length > 0) {
+        for (let jj = 0; jj < kids.length; ++jj) {
+          if (kids[jj][2] != null) return true;
+        }
+      }
+      else {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -826,10 +773,12 @@ File Names: doxy-plus.*
       if (priTree != null && Array.isArray(priTree) && priTree.length > 0) {
         // assign the primary tree
         _priTree.push(...priTree);
+        _priTreeIndented = load(KEY__PRI_TREE_INDENTED, false);
 
         // saving so that expiry time is updated
         save(KEY__GEN_DATA, window.DOXY_PLUS_DATE_TIME);
         save(KEY__PRI_TREE, _priTree);
+        save(KEY__PRI_TREE_INDENTED, _priTreeIndented);
 
         //console.log(`Gen Pri Tree: Loaded from Session Storage`);
 
@@ -895,8 +844,6 @@ File Names: doxy-plus.*
       return;
     }
 
-    _priTree.push(['Bet A', null, null]);
-
     const nsListNode = findNodeByNameList(defTree, 'Namespaces', 'Namespace List');
     if (nsListNode) {
       const [, href, kids] = nsListNode;
@@ -907,7 +854,6 @@ File Names: doxy-plus.*
         }
       }
     }
-    _priTree.push(['Bet B', null, null]);
 
     const nsMemNode = findNodeByNameList(defTree, 'Namespaces', 'Namespace Members');
     if (nsMemNode) {
@@ -1004,6 +950,7 @@ File Names: doxy-plus.*
       }
     }
 
+    /*
     _priTree.push(['Ind A', null, null]);
     _priTree.push(['Ind B', null, null]);
 
@@ -1044,9 +991,13 @@ File Names: doxy-plus.*
     ]);
 
     _priTree.push(['Ind C', null, null]);
+    */
+
+    _priTreeIndented = isTreeIndented(_priTree);
 
     save(KEY__GEN_DATA, window.DOXY_PLUS_DATE_TIME);
     save(KEY__PRI_TREE, _priTree);
+    save(KEY__PRI_TREE_INDENTED, _priTreeIndented);
 
     //console.log(`Gen Pri Tree: Generated`);
   }
@@ -1187,6 +1138,74 @@ File Names: doxy-plus.*
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // #endregion 🟥 GEN SEC TREE
+
+  // #region 🟩 CHECK RELOAD
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  function checkReload() {
+    // Guard #1: exit if this load was a reload
+    const nav = performance.getEntriesByType('navigation')[0] || {};
+    if (nav.type !== 'navigate') return;
+
+    // Guard #2: only on the landing page
+    const { pathname } = new URL(window.location.href);
+    const isLanding = pathname === '/' || pathname.endsWith('/index.html');
+    if (!isLanding) return;
+
+    // Guard #3: ensure there is something in _priTree
+    if (!_priTree.length) return;
+
+    // Attempt to restore
+    const prevUrl = load(KEY__PREV_URL);
+    if (prevUrl && prevUrl.startsWith(DOC_ROOT)) {
+      const stack = [..._priTree];
+      while (stack.length) {
+        const [, href, kids] = stack.pop();
+        if (typeof href === 'string' && IS_HTML_END.test(href) && prevUrl.includes(href)) {
+          window.location.assign(prevUrl);
+          return;  // stop after first match
+        }
+        if (Array.isArray(kids) && kids.length) {
+          stack.push(...kids);
+        }
+      }
+    }
+  }
+
+  // Always keep our “previous URL” up to date
+  window.addEventListener('beforeunload', () => {
+    save(KEY__PREV_URL, window.location.href);
+  });
+
+
+  /*
+  function checkReload() {
+    const isNotReload = (sessionStorage.getItem('is_reload') !== 'true')
+    sessionStorage.setItem('is_reload', 'true');
+    const nowUrl = window.location.href;
+    const isLandingPage = nowUrl.endsWith('/') || nowUrl.endsWith('index.html');
+    if (isNotReload && isLandingPage && _priTree.length > 0) {
+      const prevUrl = load(KEY__PREV_URL);
+      if (prevUrl) {
+        const startsWithDocRoot = prevUrl.startsWith(DOC_ROOT);
+        if (startsWithDocRoot) {
+          const stack = [..._priTree];
+          while (stack.length) {
+            const [, href, kids] = stack.pop();
+            if (typeof href === 'string' && IS_HTML_END.test(href) && prevUrl.includes(href)) {
+              window.location.assign(prevUrl);
+            }
+            if (Array.isArray(kids) && kids.length) stack.push(...kids);
+          }
+        }
+      }
+      save(KEY__PREV_URL, window.location.href);
+    }
+  }
+    */
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // #endregion 🟥 CHECK RELOAD
 
   // #region 🟩 DISPLAY DEF TREE
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1639,10 +1658,36 @@ File Names: doxy-plus.*
     cfg.saveDebounced();
   }
 
+  async function checkTreeLevels() {
+    function isTwoFullLevels(tree) {
+      if (!Array.isArray(tree) || tree.length === 0) {
+        return null;
+      }
+      for (let ii = 0; ii < tree.length; ++ii) {
+        if (Array.isArray(tree[ii][2]) && tree[ii][2].length > 0) {
+          for (let jj = 0; jj < tree[ii][2].length; ++jj) {
+            if (tree[ii][2][jj][2] != null) {
+              return false;
+            }
+          }
+        }
+        else {
+          return false;
+        }
+      }
+      return true;
+    }
+    const priContainer = await waitFor('#dp-pri-nav');
+    if (isTwoFullLevels(_priTree)) {
+      priContainer.classList.add('dp-indent-tree');
+    }
+  }
+
   async function buildTree_init() {
 
     // Primary
     const priContainer = await waitFor('#dp-pri-nav');
+    if (_priTreeIndented) priContainer.classList.add('dp-indented-tree');
     priContainer.innerHTML = '';
     const priTreeRoot = buildTree('primary');
     priContainer.appendChild(priTreeRoot);
@@ -1656,6 +1701,7 @@ File Names: doxy-plus.*
     let secTreeRoot = null;
     if (BUILD_TREE_CONFIG.secondary.data.length > 0) {
       secContainer = await waitFor('#dp-sec-nav');
+      if (isTreeIndented(_secTree)) secContainer.classList.add('dp-indented-tree');
       secContainer.innerHTML = '';
       secTreeRoot = buildTree('secondary');
       secContainer.appendChild(secTreeRoot);
@@ -1688,61 +1734,12 @@ File Names: doxy-plus.*
       }
     }
 
-    function keydownHandler(e) {
-      const focusables = Array.from(e.currentTarget.querySelectorAll('.dp-tree-link[href]:not([aria-disabled])'));
-      console.log('----', focusables.length);
-      const idx = focusables.indexOf(document.activeElement);
-      if (idx === -1) return;
 
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          focusables[(idx + 1) % focusables.length].focus();
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          focusables[(idx - 1 + focusables.length) % focusables.length].focus();
-          break;
-        case 'ArrowRight': {
-          const li = document.activeElement.closest('.dp-tree-item');
-          const btn = li.querySelector(':scope > .dp-tree-line > .dp-tree-node');
-          if (btn && li.classList.contains('dp-has-children') && !li.classList.contains('dp-node-open')) {
-            btn.click();
-          }
-          break;
-        }
-        case 'ArrowLeft': {
-          const li = document.activeElement.closest('.dp-tree-item');
-          if (li.classList.contains('dp-node-open')) {
-            li.querySelector(':scope > .dp-tree-line > .dp-tree-node').click();
-          } else {
-            const parentLi = li.parentElement.closest('.dp-tree-item');
-            if (parentLi) parentLi.querySelector('.dp-tree-link').focus();
-          }
-          break;
-        }
-        case 'Home':
-          e.preventDefault();
-          focusables[0].focus();
-          break;
-        case 'End':
-          e.preventDefault();
-          focusables[focusables.length - 1].focus();
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          document.activeElement.click();
-          break;
-      }
-    }
 
     priTreeRoot.addEventListener('click', clickHandler);
-    priTreeRoot.addEventListener('keydown', keydownHandler);
 
     if (secTreeRoot) {
       secTreeRoot.addEventListener('click', clickHandler);
-      secTreeRoot.addEventListener('keydown', keydownHandler);
       //secTreeRoot.setAttribute('tabindex', '0');
       //secTreeRoot.focus();
     }
@@ -1751,6 +1748,8 @@ File Names: doxy-plus.*
   // Reflect hash changes in secondary tree
   window.addEventListener('hashchange', () => {
     save(KEY__PREV_URL, window.location.href);
+
+    //save(KEY__PREV_URL, window.location.href);
     if (BUILD_TREE_CONFIG.secondary.data.length > 0) {
       urlHashChanged();
     }
@@ -1761,12 +1760,76 @@ File Names: doxy-plus.*
     setCurrentTreeItem(secContainer, 'secondary');
   }
 
+  let _secNavFocus = false;
+
   document.addEventListener('mousedown', e => {
     const hit = document.elementFromPoint(e.clientX, e.clientY);
     if (hit.closest('#dp-pri-nav')) console.log('PRIMARY');
     else if (hit.closest('#dp-sec-nav')) console.log('SECONDARY');
     else console.log('OUTSIDE');
+
+    if(hit.closest('#dp-sec-nav')) _secNavFocus = true;
+    else _secNavFocus = false;
   }, true);
+
+  document.addEventListener('keydown', e => {
+    if (_secNavFocus && _secTree.length > 0) {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key))
+        return;
+      keydownHandler(e)
+    }
+  });
+
+  async function keydownHandler(e) {
+    if(!_secNavFocus || _secTree.length === 0) return;
+    const secContainer = await waitFor('#dp-sec-nav');
+    const focusables = Array.from(secContainer.querySelectorAll('.dp-tree-link[href]:not([aria-disabled])'));
+    const idx = focusables.indexOf(secContainer.querySelector('.dp-current > .dp-tree-line > .dp-tree-link'));
+    console.log('----', idx, focusables.length);
+    if (idx === -1) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        focusables[(idx + 1) % focusables.length].click();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        focusables[(idx - 1 + focusables.length) % focusables.length].click();
+        break;
+      case 'ArrowRight': {
+        const li = focusables[idx].closest('.dp-tree-item');
+        const btn = li.querySelector(':scope > .dp-tree-line > .dp-tree-node');
+        if (btn && li.classList.contains('dp-has-children') && !li.classList.contains('dp-node-open')) {
+          btn.click();
+        }
+        break;
+      }
+      case 'ArrowLeft': {
+        const li = focusables[idx].closest('.dp-tree-item');
+        if (li.classList.contains('dp-node-open')) {
+          li.querySelector(':scope > .dp-tree-line > .dp-tree-node').click();
+        } else {
+          const parentLi = li.parentElement.closest('.dp-tree-item');
+          if (parentLi) parentLi.querySelector('.dp-tree-link').focus();
+        }
+        break;
+      }
+      case 'Home':
+        e.preventDefault();
+        focusables[0].focus();
+        break;
+      case 'End':
+        e.preventDefault();
+        focusables[focusables.length - 1].focus();
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        document.activeElement.click();
+        break;
+    }
+  }
 
   /*
   function buildTree(primary = true) {
@@ -1977,6 +2040,7 @@ File Names: doxy-plus.*
     sidebarToggleButton();
     dualNavResizer();
     await genPriTree();
+    checkReload();
     await genSecTree();
     setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
     adjustXandH_init();
