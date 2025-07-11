@@ -24,7 +24,7 @@ html {
   --dp-button-color: rgb(240, 240, 240);
   --dp-button-hover-color: rgb(230, 230, 230);
   --dp-highlight-color: rgba(20, 110, 210, 0.3);
-  --dp-visited-text-color: rgb(150, 0, 120);
+  --dp-visited-text-color: rgb(150, 0, 150);
 }
 
 html.dark-mode {
@@ -36,7 +36,7 @@ html.dark-mode {
   --fragment-background: rgb(25, 30, 40) !important;
   --dp-button-color: rgb(25, 30, 40);
   --dp-button-hover-color: rgb(40, 45, 55);
-  --dp-visited-text-color: rgb(250, 0, 220);
+  --dp-visited-text-color: rgb(250, 100, 250);
 }
 
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
