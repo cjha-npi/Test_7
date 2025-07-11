@@ -1871,7 +1871,7 @@ File Names: doxy-plus.*
           node.setAttribute('aria-expanded', 'true');
           console.log('Right Arrow: GOOD');
         }
-        else{
+        else {
           console.log('Right Arrow: BAD');
         }
         break;
@@ -1904,15 +1904,15 @@ File Names: doxy-plus.*
             parNode.setAttribute('aria-expanded', 'false');
             console.log('Left Arrow: Parent');
             const link = parLi.querySelector(':scope > .dp-tree-line > .dp-tree-link');
-            if(typeof link.href === 'string' && link.href.length > 0){
+            if (typeof link.href === 'string' && link.href.length > 0) {
               window.location.href = link.href;
             }
           }
-          else{
+          else {
             console.log('Left Arrow: Parent BAD');
           }
         }
-        else{
+        else {
           console.log('Left Arrow: Current BAD');
         }
         break;
