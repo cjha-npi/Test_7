@@ -1443,8 +1443,57 @@ File Names: doxy-plus.*
   // #region 🟩 ADJUST X AND H
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+  window.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('doc-content');
+    const header = container.querySelector('.header');
+    if (!container || !header) return;
+
+    // 1) Make sure offsetTop is relative to this container
+    if (getComputedStyle(container).position === 'static') {
+      container.style.position = 'relative';
+    }
+
+    // 2) Grab header height
+    let headerHeight = header.getBoundingClientRect().height;
+
+    // 3) The core scroll function
+    function scrollToHash() {
+      const hash = window.location.hash;
+      if (!hash) return;
+
+      const target = container.querySelector(hash);
+      if (!target) return;
+
+      // Compute the offset position relative to container
+      const targetY = target.offsetTop - headerHeight;
+      container.scrollTo({ top: targetY, behavior: 'auto' });
+    }
+
+    // 4) Intercept in-page link clicks
+    container.addEventListener('click', e => {
+      const a = e.target.closest('a[href^="#"]');
+      if (!a) return;
+      e.preventDefault();
+      history.pushState(null, '', a.getAttribute('href'));
+      scrollToHash();
+    });
+
+    // 5) Handle back/forward & initial load
+    window.addEventListener('hashchange', scrollToHash);
+    // after the browser does its initial jump, nudge it into place
+    setTimeout(scrollToHash, 0);
+
+    // 6) If your header can resize (responsive), keep in sync
+    window.addEventListener('resize', () => {
+      headerHeight = header.getBoundingClientRect().height;
+    });
+  });
+
+
   async function adjustXandH() {
     const topP = waitFor('#top');
+    const hedP = waitFor('#doc-content .header');
+    const conP = waitFor('#doc-content .contents');
     const navP = waitFor('#side-nav');
     const docP = waitFor('#doc-content');
     const btmP = waitFor('#nav-path');
@@ -1452,7 +1501,7 @@ File Names: doxy-plus.*
     const priResP = waitFor('#dp-pri-nav-resizer');
     const secP = waitFor('#dp-sec-nav');
     const secResP = waitFor('#dp-sec-nav-resizer');
-    const [top, nav, doc, btm, pri, priRes, sec, secRes] = await Promise.all([topP, navP, docP, btmP, priP, priResP, secP, secResP]);
+    const [top, hed, con, nav, doc, btm, pri, priRes, sec, secRes] = await Promise.all([topP, hedP, conP, navP, docP, btmP, priP, priResP, secP, secResP]);
 
     const hWin = window.innerHeight;
     const hBtm = btm.getBoundingClientRect().height;
@@ -1460,6 +1509,10 @@ File Names: doxy-plus.*
     const hVal = hWin - xVal - hBtm;
     const xTxt = xVal + 'px';
     const hTxt = hVal + 'px';
+
+    const hHed = hed.getBoundingClientRect().height;
+    const hCon = con.getBoundingClientRect().height;
+
 
     pri.style.setProperty('top', xTxt, 'important');
     priRes.style.setProperty('top', xTxt, 'important');
@@ -1473,7 +1526,7 @@ File Names: doxy-plus.*
     sec.style.setProperty('height', hTxt, 'important');
     secRes.style.setProperty('height', hTxt, 'important');
 
-    //console.log(`Adjust X & H: X=${xTxt} & H=${hTxt}`);
+    console.log(`Adjust X & H: X=${xTxt} & H=${hTxt} (${xTxt}, ${hHed})`);
   }
 
   async function adjustXandH_init() {
