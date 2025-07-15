@@ -9,6 +9,7 @@ File Names: doxy-plus.*
 :root {
   --dp-border-radius: 6px;
   --dp-scroll-margin-top: 250;
+  --dp-search-field: "All:";
 }
 
 .dp-hidden {
@@ -60,6 +61,10 @@ html.dark-mode {
   --dp-search-select-text-color: rgb(120, 160, 200);
 }
 
+#projectalign {
+  padding: 0px !important;
+}
+
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
 /* SEARCH BOX CUSTOMIZATIONS */
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
@@ -73,41 +78,126 @@ html.dark-mode {
   background: var(--dp-button-hover-color) !important;
 }
 
-#MSearchSelect {
-  margin-left: 0.3em !important;
-  margin-right: 0.3em !important;
-  background: none       !important;
-  text-indent: 0         !important; /* undo the &nbsp; hack */
-  width: auto            !important;
-  height: auto           !important;
-  color: var(--dp-search-select-text-color) !important;
-  font-size: 0.9em      !important;
-  font-family: var(--font-family) !important;
-  font-weight: 500 !important;
-  display: inline-flex  !important;
-  align-items: center   !important;
-  white-space: nowrap   !important;
+@media screen and (min-width: 768px) {
+  /* turn the UL into a flex container */
+  #main-menu {
+    display: flex !important;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  /* clear out the old floats */
+  #main-menu > li {
+    float: none !important;
+  }
+
+  /* make the search-LI a flex container AND the one that fills the gap */
+  #searchBoxPos2 {
+    display: flex !important;
+    flex: 1 1 auto !important; /* this LI takes up remaining space */
+    align-items: center; /* vertically center its children */
+    justify-content: flex-end !important;
+  }
+
+  /* now only the MSearchBox inside that LI grows */
+  #searchBoxPos2 > #MSearchBox {
+    flex: 1 1 auto !important; /* fill all free space inside the LI */
+    min-width: 0; /* allow it to shrink if needed */
+    box-sizing: border-box;
+    max-width: 400px !important;
+  }
+
+  /* keep the other two child elements at their intrinsic size */
+  #searchBoxPos2 > *:not(#MSearchBox) {
+    flex: 0 0 auto !important;
+  }
+
+  /* ensure the input itself uses all of its parent’s width */
+  #searchBoxPos2 #MSearchBox input {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+}
+
+#MSearchBox {
+  display: flex;
+  align-items: stretch;   /* make children fill its height */
+}
+
+/* LEFT SIDE (icon + input) */
+#MSearchBox > .left {
+  display: flex;
+  align-items: center;    /* center icon & input vertically */
+  flex: 1 1 auto;         /* <-- allow this span to grow/shrink */
+  min-width: 0;           /* <-- allow its child (the input) to shrink below content-size */
+  max-width: calc(100% - 24px); /* 16px wide icon, 5px margin on right of it and we leave 3px space before */
+}
+
+/* the input flexes to fill the .left span */
+#MSearchField {
+  flex: 1 1 auto;         /* grow & shrink */
+  min-width: 0;           /* prevent overflowing its flex container */
+  height: 100%;           /* match the box height */
+  box-sizing: border-box; /* include any padding/border in that height/width */
+  width: auto;            /* override any UA default */
+}
+
+/* RIGHT SIDE (close button) stays just as big as its contents */
+#MSearchBox > .right {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* make the close-<img> fill its parent’s height */
+#MSearchCloseImg {
+  height: 100%;
+  width: auto;
+  display: block;
+  padding: 0px !important;
+  width: 16px !important;
+  height: 16px !important;
+}
+
+#MSearchBox span.left,
+#MSearchBox span.right {
+  height: 100% !important;
   vertical-align: middle !important;
+  margin: 0px !important;
+  padding: 0px !important;
+  width: auto !important;
+}
+
+#MSearchSelect {
+  color: var(--dp-search-select-text-color) !important;
+  display: inline-flex;
+  width: auto !important;
+  height: 100% !important;
+  text-indent: 0 !important;
+  background: none !important;
+  align-items: center !important;
+  margin-left: 0.35em !important;
+  margin-right: 0.25em !important;
+  padding-bottom: 0.05em !important;
+  font-weight: 500 !important;
 }
 
 #MSearchSelect::before {
-  content: "▼"          !important;
-  display: inline-block !important;
-  margin-top: 0.3em !important;
-  margin-right: 0.3em   !important;
-  font-size: 0.6em      !important;
-  color: inherit        !important; /* same as the text color */
-  line-height: 1        !important;
-  vertical-align: middle !important;
+  content: "▼";
+  font-size: 0.7em;
 }
 
+/* 3. Right pseudo: the label */
+#MSearchSelect::after {
+  content: var(--dp-search-field);
+  font-size: 0.9em;
+}
 
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
 /* HEADER CUSTOMIZATIONS */
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
 
 body > .header {
-  
   border-bottom: 1px solid var(--dp-highlight-color);
   background-color: var(--page-background-color) !important;
   background-image: linear-gradient(var(--dp-highlight-color-light), var(--dp-highlight-color-light));
@@ -125,7 +215,7 @@ body > .header > .summary {
 }
 
 @media screen and (max-width: 767px) {
-  body > .header > .headertitle > .title{
+  body > .header > .headertitle > .title {
     font-size: 150% !important;
   }
 }
@@ -145,6 +235,12 @@ body > .header > .summary {
   padding-bottom: 0px !important;
 }
 
+#projectbrief {
+  line-height: 12px;
+  font-size: 12px !important;
+  padding-bottom: 2px;
+}
+
 #main-nav {
   padding-top: 0px !important;
   padding-bottom: 0px !important;
@@ -158,11 +254,11 @@ body > .header > .summary {
   }
 }
 
-#top{
+#top {
   border-bottom: 1px solid var(--dp-highlight-color);
 }
 
-#nav-path > ul{
+#nav-path > ul {
   border-top: 1px solid var(--dp-highlight-color);
 }
 
@@ -219,14 +315,13 @@ doxygen-awesome-dark-mode-toggle:hover {
   min-width: 50px !important; /* Set minimum width of navigation bar so that it behaves better on touch screens */
   /* Set navigation bar background color to general background color, changes with theme */
   background: var(--page-background-color) !important;
-  
 }
 
-#nav-tree{
+#nav-tree {
   border-right: 1px solid var(--dp-highlight-color);
 }
 
-.ui-resizable-handle.ui-resizable-e{
+.ui-resizable-handle.ui-resizable-e {
   box-shadow: none !important;
 }
 
@@ -242,11 +337,9 @@ doxygen-awesome-dark-mode-toggle:hover {
   opacity: 1 !important;
 }
 
-
-#side-nav #nav-tree-contents .item{
+#side-nav #nav-tree-contents .item {
   margin-block: -3px;
 }
-
 
 /* Gets rid of the small blue bar on the very left of the selected and/or current item in tree */
 #side-nav #nav-tree-contents .item.selected::after,

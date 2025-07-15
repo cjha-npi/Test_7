@@ -356,13 +356,48 @@ File Names: doxy-plus.*
         await new Promise(requestAnimationFrame);
       }
       const label = window.indexSectionLabels[window.searchBox.searchIndex] || 'All';
+      const root = document.documentElement;
+      root.style.setProperty('--dp-search-field', `"${label}:"`);
       //const field = await waitFor('#MSearchField');
       //field.setAttribute('placeholder', `Search ${label}`);
-      var searchSelect = document.getElementById("MSearchSelect");
-      if(searchSelect){
-        searchSelect.textContent = `${label}:`;
-      }
-      //console.log(`Search Placeholder Tweak - Update: SUCCESS "Search ${label}"`);
+      //var searchSelect = document.getElementById("MSearchSelect");
+      //if(searchSelect){
+      //searchSelect.textContent = `${label}:`;
+      //}
+      console.log(`Search Placeholder Tweak - Update: SUCCESS "Search ${label}"`);
+    }
+
+    async function syncSearchPopupSize() {
+      const parentId = window.innerWidth < 768
+        ? 'searchBoxPos1'
+        : 'searchBoxPos2';
+
+      // wait for the right MSearchBox
+      const sBox = await waitFor(`#${parentId} #MSearchBox`);
+      const sPop = document.getElementById('MSearchResultsWindow');
+      if (!sBox || !sPop) return;
+
+      const { left, width } = sBox.getBoundingClientRect();
+      sPop.style.setProperty('left', `${left}px`, 'important');
+      sPop.style.setProperty('width', `${width}px`, 'important');
+      console.log(`Synced: ${parentId} -> ${left} & ${width}`);
+    }
+
+    const popup = document.getElementById('MSearchResultsWindow');
+    if (popup) {
+      new MutationObserver(records => {
+        records.forEach(rec => {
+          if (rec.attributeName === 'style') {
+            if (getComputedStyle(popup).display === 'block') {
+              syncSearchPopupSize();
+              console.log('Popup Visible');
+            }
+            else {
+              console.log('Popup Invisible');
+            }
+          }
+        });
+      }).observe(popup, { attributes: true });
     }
 
     //await update(); // no need to call here, the window.searchBox.OnSelectItem is triggered automatically the first time
@@ -399,7 +434,7 @@ File Names: doxy-plus.*
     // ⚠️ NOTE: debounce is needed because without it the update function runs but the placeholder remains not update
     // on resize. I think this is because without debounce the placeholder is updated very fast and afterwards the
     // searchbox itself is re-created by Doxygen or Doxygen Awesome theme thus removing the updated placeholder text.
-    window.addEventListener('resize', debounce(update, 50));
+    //window.addEventListener('resize', debounce(update, 50));
     //console.log('Search Placeholder Tweak: SUCCESS');
   }
 
