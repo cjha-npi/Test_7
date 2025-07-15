@@ -356,8 +356,12 @@ File Names: doxy-plus.*
         await new Promise(requestAnimationFrame);
       }
       const label = window.indexSectionLabels[window.searchBox.searchIndex] || 'All';
-      const field = await waitFor('#MSearchField');
-      field.setAttribute('placeholder', `Search ${label}`);
+      //const field = await waitFor('#MSearchField');
+      //field.setAttribute('placeholder', `Search ${label}`);
+      var searchSelect = document.getElementById("MSearchSelect");
+      if(searchSelect){
+        searchSelect.textContent = `${label}:`;
+      }
       //console.log(`Search Placeholder Tweak - Update: SUCCESS "Search ${label}"`);
     }
 
@@ -1443,52 +1447,32 @@ File Names: doxy-plus.*
   // #region 🟩 ADJUST X AND H
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  window.addEventListener('DOMContentLoaded', () => {
-    const container = document.getElementById('doc-content');
-    const header = container.querySelector('.header');
-    if (!container || !header) return;
+  let pMargin = 0;
+  async function assignOwnHeader() {
+    const [doc, hed] = await Promise.all([waitFor('#doc-content'), waitFor('#doc-content .header')]);
+    const par = doc.parentElement;
+    if (!doc || !hed || !par) return;
+    const clone = hed.cloneNode(true);
+    clone.removeAttribute('id');
+    par.insertBefore(clone, doc);
 
-    // 1) Make sure offsetTop is relative to this container
-    if (getComputedStyle(container).position === 'static') {
-      container.style.position = 'relative';
+    async function setOwnHeaderMargin() {
+      const doc = await waitFor('#doc-content');
+      const lMargin = doc.getBoundingClientRect().left;
+      if (lMargin !== pMargin) {
+        const dpHeader = document.querySelector('body > .header');
+        dpHeader.style.setProperty('margin-left', lMargin + 'px', 'important');
+        pMargin = lMargin;
+        adjustXandH();
+      }
     }
 
-    // 2) Grab header height
-    let headerHeight = header.getBoundingClientRect().height;
-
-    // 3) The core scroll function
-    function scrollToHash() {
-      const hash = window.location.hash;
-      if (!hash) return;
-
-      const target = container.querySelector(hash);
-      if (!target) return;
-
-      // Compute the offset position relative to container
-      const targetY = target.offsetTop - headerHeight;
-      container.scrollTo({ top: targetY, behavior: 'auto' });
-    }
-
-    // 4) Intercept in-page link clicks
-    container.addEventListener('click', e => {
-      const a = e.target.closest('a[href^="#"]');
-      if (!a) return;
-      e.preventDefault();
-      history.pushState(null, '', a.getAttribute('href'));
-      scrollToHash();
+    const ro = new ResizeObserver(entries => {
+      setOwnHeaderMargin();
     });
-
-    // 5) Handle back/forward & initial load
-    window.addEventListener('hashchange', scrollToHash);
-    // after the browser does its initial jump, nudge it into place
-    setTimeout(scrollToHash, 0);
-
-    // 6) If your header can resize (responsive), keep in sync
-    window.addEventListener('resize', () => {
-      headerHeight = header.getBoundingClientRect().height;
-    });
-  });
-
+    ro.observe(doc);
+    window.addEventListener('load', adjustXandH);
+  }
 
   async function adjustXandH() {
     const topP = waitFor('#top');
@@ -1503,6 +1487,8 @@ File Names: doxy-plus.*
     const secResP = waitFor('#dp-sec-nav-resizer');
     const [top, hed, con, nav, doc, btm, pri, priRes, sec, secRes] = await Promise.all([topP, hedP, conP, navP, docP, btmP, priP, priResP, secP, secResP]);
 
+    const dph = document.querySelector('body > .header');
+
     const hWin = window.innerHeight;
     const hBtm = btm.getBoundingClientRect().height;
     const xVal = top.getBoundingClientRect().height;
@@ -1510,17 +1496,16 @@ File Names: doxy-plus.*
     const xTxt = xVal + 'px';
     const hTxt = hVal + 'px';
 
-    const hHed = hed.getBoundingClientRect().height;
-    const hCon = con.getBoundingClientRect().height;
+    const hHed = dph.getBoundingClientRect().height;
 
-
+    doc.style.setProperty('top', hHed + 'px', 'important');
     pri.style.setProperty('top', xTxt, 'important');
     priRes.style.setProperty('top', xTxt, 'important');
     sec.style.setProperty('top', xTxt, 'important');
     secRes.style.setProperty('top', xTxt, 'important');
 
     nav.style.setProperty('height', hTxt, 'important');
-    doc.style.setProperty('height', hTxt, 'important');
+    doc.style.setProperty('height', hVal - hHed + 'px', 'important');
     pri.style.setProperty('height', hTxt, 'important');
     priRes.style.setProperty('height', hTxt, 'important');
     sec.style.setProperty('height', hTxt, 'important');
@@ -2205,6 +2190,7 @@ File Names: doxy-plus.*
     await genPriTree();
     checkReload();
     await genSecTree();
+    assignOwnHeader();
     setCorrectLayout(MEDIA_QUERY_WIN_WIDTH);
     adjustXandH_init();
     buildTree_init();

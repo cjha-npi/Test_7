@@ -8,6 +8,7 @@ File Names: doxy-plus.*
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
 :root {
   --dp-border-radius: 6px;
+  --dp-scroll-margin-top: 250;
 }
 
 .dp-hidden {
@@ -25,7 +26,8 @@ html {
   --dp-highlight-color: rgba(20, 110, 210, 0.3);
   --dp-highlight-color-light: rgba(20, 110, 210, 0.1);
   --dp-visited-text-color: rgb(150, 0, 150);
-  
+  --dp-search-select-text-color: rgb(80, 120, 160);
+
   --page-font-size: 13px !important;
   --navigation-font-size: 13px !important;
   --toc-font-size: 13px !important;
@@ -35,14 +37,14 @@ html {
 }
 
 @media screen and (max-width: 767px) {
-    html {
-        --page-font-size: 13px !important;
-  --navigation-font-size: 13px !important;
-  --toc-font-size: 13px !important;
-  --code-font-size: 12px !important; /* affects code, fragment */
-  --title-font-size: 18px !important;
-  --memtitle-font-size: 16px !important;
-    }
+  html {
+    --page-font-size: 13px !important;
+    --navigation-font-size: 13px !important;
+    --toc-font-size: 13px !important;
+    --code-font-size: 12px !important; /* affects code, fragment */
+    --title-font-size: 18px !important;
+    --memtitle-font-size: 16px !important;
+  }
 }
 
 html.dark-mode {
@@ -55,6 +57,7 @@ html.dark-mode {
   --dp-button-color: rgb(25, 30, 40);
   --dp-button-hover-color: rgb(40, 45, 55);
   --dp-visited-text-color: rgb(250, 100, 250);
+  --dp-search-select-text-color: rgb(120, 160, 200);
 }
 
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
@@ -70,33 +73,67 @@ html.dark-mode {
   background: var(--dp-button-hover-color) !important;
 }
 
+#MSearchSelect {
+  margin-left: 0.3em !important;
+  margin-right: 0.3em !important;
+  background: none       !important;
+  text-indent: 0         !important; /* undo the &nbsp; hack */
+  width: auto            !important;
+  height: auto           !important;
+  color: var(--dp-search-select-text-color) !important;
+  font-size: 0.9em      !important;
+  font-family: var(--font-family) !important;
+  font-weight: 500 !important;
+  display: inline-flex  !important;
+  align-items: center   !important;
+  white-space: nowrap   !important;
+}
+
+#MSearchSelect::before {
+  content: "▼"          !important;
+  display: inline-block !important;
+  margin-top: 0.3em !important;
+  margin-right: 0.3em   !important;
+  font-size: 0.6em      !important;
+  color: inherit        !important; /* same as the text color */
+  line-height: 1        !important;
+  vertical-align: middle!important;
+}
+
+
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
 /* HEADER CUSTOMIZATIONS */
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
 
-#doc-content > .header{
-  border-top: 2px solid var(--dp-highlight-color);
-  border-bottom: 2px solid var(--dp-highlight-color);
+body > .header {
+  
+  border-bottom: 1px solid var(--dp-highlight-color);
   background-color: var(--page-background-color) !important;
   background-image: linear-gradient(var(--dp-highlight-color-light), var(--dp-highlight-color-light));
 }
 
-#doc-content > .header > .headertitle > .title {
-  font-size: 200% !important;
+body > .header > .headertitle > .title {
+  font-size: 250% !important;
   margin-top: 0px !important;
   margin-bottom: 0px !important;
   padding: 5px 16px !important;
-  text-align: center;
 }
 
-#doc-content > .header > .summary{
+body > .header > .summary {
   margin-top: 0px !important;
 }
 
-div.header {
+@media screen and (max-width: 767px) {
+  body > .header > .headertitle > .title{
+    font-size: 150% !important;
+  }
+}
+
+#doc-content .header {
   position: sticky !important;
   top: 0;
   z-index: 9990;
+  display: none !important;
 }
 
 #titlearea {
@@ -111,14 +148,21 @@ div.header {
   padding-top: 0px !important;
   padding-bottom: 0px !important;
   padding-left: 5px !important;
-  padding-right: 10px !important;
+  padding-right: 5px !important;
 }
 
-@media screen and (max-width: 1018px) {
+@media screen and (max-width: 935px) {
   #main-nav {
     padding-bottom: 5px !important;
-    padding-right: 5px !important;
   }
+}
+
+#top{
+  border-bottom: 1px solid var(--dp-highlight-color);
+}
+
+#nav-path > ul{
+  border-top: 1px solid var(--dp-highlight-color);
 }
 
 /*━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━*/
@@ -174,6 +218,15 @@ doxygen-awesome-dark-mode-toggle:hover {
   min-width: 50px !important; /* Set minimum width of navigation bar so that it behaves better on touch screens */
   /* Set navigation bar background color to general background color, changes with theme */
   background: var(--page-background-color) !important;
+  
+}
+
+#nav-tree{
+  border-right: 1px solid var(--dp-highlight-color);
+}
+
+.ui-resizable-handle.ui-resizable-e{
+  box-shadow: none !important;
 }
 
 /* Change the navigation tree arrow type, arrow is changed to circle in the head_script.js file */
@@ -187,6 +240,12 @@ doxygen-awesome-dark-mode-toggle:hover {
   /* By default opacity is changing based on hover, to make it always visible change opacity to 1 */
   opacity: 1 !important;
 }
+
+
+#side-nav #nav-tree-contents .item{
+  margin-block: -3px;
+}
+
 
 /* Gets rid of the small blue bar on the very left of the selected and/or current item in tree */
 #side-nav #nav-tree-contents .item.selected::after,
@@ -209,11 +268,16 @@ doxygen-awesome-dark-mode-toggle:hover {
 /* Apply custom changes to selected and/or current item */
 #side-nav #nav-tree-contents .item.selected,
 #side-nav #nav-tree-contents .item.current {
-  padding-top: 5px;
-  padding-bottom: 5px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding-top: 3px;
+  padding-bottom: 4px;
   color: var(--page-foreground-color) !important;
-  background-color: var(--dp-highlight-color);
-  margin-left: 5px !important;
+  background-color: var(--dp-highlight-color-light);
+  border-top: 1px solid var(--dp-highlight-color);
+  border-bottom: 1px solid var(--dp-highlight-color);
+  margin-left: 0px !important;
+  padding-left: 5px !important;
 }
 
 /* This moves the expand/collapse icon 10px to left, since we removed the top item in the 
@@ -292,7 +356,7 @@ div.contents .toc,
 #dp-sec-nav {
   position: fixed;
   list-style: none;
-  border-right: 2px solid var(--dp-highlight-color);
+  border-right: 1px solid var(--dp-highlight-color);
   white-space: nowrap;
   overflow-x: hidden;
   overflow-y: auto;
@@ -412,9 +476,9 @@ li.dp-has-children > .dp-tree-line > .dp-tree-link {
 }
 
 li.dp-current > .dp-tree-line {
-  margin-top: 3px;
-  margin-bottom: 3px;
-  padding-top: 4px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding-top: 3px;
   padding-bottom: 4px;
   position: relative;
   overflow: visible;
@@ -431,8 +495,8 @@ li.dp-current > .dp-tree-line::before {
   right: 0px;
 
   background: var(--dp-highlight-color-light);
-  border-top: 2px solid var(--dp-highlight-color);
-  border-bottom: 2px solid var(--dp-highlight-color);
+  border-top: 1px solid var(--dp-highlight-color);
+  border-bottom: 1px solid var(--dp-highlight-color);
   z-index: -1; /* behind your line/node/link */
   pointer-events: none; /* don’t block clicks/scrolls */
 }
