@@ -87,6 +87,7 @@ html.dark-mode {
   display: inline-flex  !important;
   align-items: center   !important;
   white-space: nowrap   !important;
+  vertical-align: middle !important;
 }
 
 #MSearchSelect::before {
@@ -97,7 +98,7 @@ html.dark-mode {
   font-size: 0.6em      !important;
   color: inherit        !important; /* same as the text color */
   line-height: 1        !important;
-  vertical-align: middle!important;
+  vertical-align: middle !important;
 }
 
 
